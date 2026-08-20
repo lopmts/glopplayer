@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:glopplayer/db/playlist_db.dart';
 import 'package:glopplayer/models/playlist_models.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 class PlaylistProvider extends ChangeNotifier {
   List<Playlist> _playlists = [];

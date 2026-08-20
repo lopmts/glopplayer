@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:glopplayer/components/add_to_playlist_dialog.dart';
+import 'package:glopplayer/widgets/add_to_playlist_dialog.dart';
 import 'package:glopplayer/controllers/library_controller.dart';
 import 'package:glopplayer/utils/format_utils.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import '../services/player_controller.dart';
-import '../widgets/artwork_thumbnail.dart';
+import 'artwork_thumbnail.dart';
 import '../screens/pages/player_screen.dart';
 
 class MusicListItems extends StatefulWidget {

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:glopplayer/db/songs_db.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ArtworkCacheService {

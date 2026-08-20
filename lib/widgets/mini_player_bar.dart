@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:glopplayer/widgets/artwork_thumbnail.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../screens/pages/player_screen.dart';

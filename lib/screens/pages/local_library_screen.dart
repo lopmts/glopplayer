@@ -192,7 +192,7 @@ class _FolderListSection extends StatelessWidget {
       return;
     }
 
-    final path = await FilePicker.platform.getDirectoryPath();
+    final path = await FilePicker.getDirectoryPath();
     if (path == null) return; // usuário cancelou o seletor
 
     final result = await controller.addFolder(path);

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:glopplayer/components/create_playlist_dialog.dart';
+import 'package:glopplayer/widgets/create_playlist_dialog.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 class AddToPlaylistDialog extends StatelessWidget {
   final List<SongModel> songs;

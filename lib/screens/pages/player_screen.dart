@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:glopplayer/components/speed_Button_player.dart';
+import 'package:glopplayer/widgets/speed_Button_player.dart';
 import 'package:glopplayer/services/lyrics_song.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
 
-import '../../components/add_to_playlist_dialog.dart';
+import '../../widgets/add_to_playlist_dialog.dart';
 import '../../services/player_controller.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/artwork_thumbnail.dart';

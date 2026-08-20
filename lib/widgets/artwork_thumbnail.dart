@@ -2,7 +2,7 @@ import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import '../services/artwork_cache_service.dart';
 
 class ArtworkThumbnail extends StatefulWidget {

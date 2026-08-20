@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:glopplayer/screens/pages/log_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:glopplayer/controllers/library_controller.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
@@ -15,6 +16,7 @@ import 'package:provider/provider.dart';
 import 'package:glopplayer/widgets/tabs_navegation.dart';
 import 'services/audio_player_handler.dart';
 import 'services/player_controller.dart';
+import 'package:glopplayer/widgets/update_dialog.dart';
 
 late MyAudioHandler audioHandler;
 late PlayerController playerController;
@@ -60,13 +62,35 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  // Navigator key used to obtain a BuildContext that is below MaterialApp
+  // so dialogs (like the update dialog) can be shown safely on startup.
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   StreamSubscription<Uri?>? _widgetSubscription;
 
   @override
   void initState() {
     super.initState();
+
     HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleWidgetUri);
     _widgetSubscription = HomeWidget.widgetClicked.listen(_handleWidgetUri);
+
+    // Schedule a check for updates after the first frame so MaterialApp and
+    // navigator are available. Uses the navigatorKey's context to show the
+    // update dialog when an update is found.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final ctx = _navigatorKey.currentContext;
+      if (ctx == null) return;
+      try {
+        await checkForUpdatesOnStartup(
+          ctx,
+          includePrerelease: false,
+          onError: (err) => debugPrint('Erro ao checar atualizações: $err'),
+        );
+      } catch (e) {
+        debugPrint('checkForUpdatesOnStartup failed: $e');
+      }
+    });
   }
 
   @override
@@ -111,6 +135,7 @@ class _MyAppState extends State<MyApp> {
       child: DynamicColorWrapper(
         builder: (context, lightTheme, darkTheme, mode) {
           return MaterialApp(
+            navigatorKey: _navigatorKey,
             title: 'GlopPlay',
             debugShowCheckedModeBanner: false,
             theme: lightTheme,
@@ -124,6 +149,7 @@ class _MyAppState extends State<MyApp> {
                   const LocalLibraryScreen(),
               '/pages/cache_management_screen': (context) =>
                   const CacheManagementScreen(),
+              '/pages/logs_screen': (context) => const LogsScreen(),
             },
           );
         },

@@ -64,9 +64,7 @@ class UpdateService {
   UpdateService._internal();
   static final UpdateService instance = UpdateService._internal();
 
-  /// TODO: troque pelo dono/repositório reais no GitHub.
-  /// Ex: repo "https://github.com/matias/glopplayer" -> owner="matias", repo="glopplayer"
-  static const String owner = 'SEU_USUARIO_GITHUB';
+  static const String owner = 'glopmts';
   static const String repo = 'glopplayer';
 
   /// Timeout para a checagem de release (chamada leve à API do GitHub).

@@ -27,13 +27,21 @@ class UpdateNotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  bool _initialized = false;
+  // Guarda a Future do init em vez de um bool. Assim, se alguma notificação
+  // for pedida ANTES do init() (chamado sem await lá no main()) terminar,
+  // a gente espera essa mesma Future em vez de simplesmente desistir — era
+  // exatamente isso que fazia a notificação sumir em silêncio.
+  Future<void>? _initFuture;
   String? _pendingInstallPath;
 
-  /// Chame uma vez, no início do app (ex: `main()`, antes do `runApp`).
-  Future<void> init() async {
-    if (_initialized) return;
+  /// Chame uma vez, no início do app (ex: `main()`). Pode ser sem `await`
+  /// — é seguro chamar de novo depois, ou de vários lugares: a segunda
+  /// chamada só reaproveita a Future da primeira.
+  Future<void> init() {
+    return _initFuture ??= _doInit();
+  }
 
+  Future<void> _doInit() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
     const initSettings = InitializationSettings(
@@ -59,14 +67,26 @@ class UpdateNotificationService {
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
     }
+  }
 
-    _initialized = true;
+  /// Garante que o init terminou antes de tentar mostrar uma notificação.
+  /// Retorna false (sem propagar erro) se o init falhar — nesse caso a
+  /// notificação simplesmente não aparece, mas o fluxo de update continua.
+  Future<bool> _ensureInitialized() async {
+    try {
+      await init();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /// Pede permissão de notificação (obrigatório no Android 13+ e no iOS).
   /// Chame depois de `init()`, idealmente perto de quando o update começa
   /// (não precisa pedir isso no primeiro frame do app).
   Future<bool> requestPermissions() async {
+    await _ensureInitialized();
+
     if (Platform.isAndroid) {
       final granted = await _plugin
           .resolvePlatformSpecificImplementation<
@@ -120,7 +140,7 @@ class UpdateNotificationService {
   /// "Verificando atualizações..." — opcional, útil se a checagem demorar
   /// (ex: disparada por um botão manual em vez de silenciosa no startup).
   Future<void> notifyChecking() async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     await _plugin.show(
       id: _notificationId,
       title: 'Verificando atualizações',
@@ -138,7 +158,7 @@ class UpdateNotificationService {
 
   /// Download começou (0%, indeterminado até o primeiro chunk chegar).
   Future<void> notifyDownloadStarted(String version) async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     await _plugin.show(
       id: _notificationId,
       title: 'Baixando atualização',
@@ -163,7 +183,7 @@ class UpdateNotificationService {
     required String receivedMb,
     required String totalMb,
   }) async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     await _plugin.show(
       id: _notificationId,
       title: 'Baixando atualização',
@@ -185,7 +205,7 @@ class UpdateNotificationService {
     required String version,
     required String filePath,
   }) async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     _pendingInstallPath = filePath;
     await _plugin.show(
       id: _notificationId,
@@ -204,7 +224,7 @@ class UpdateNotificationService {
 
   /// Erro em qualquer etapa (checagem, download ou instalação).
   Future<void> notifyError(String message) async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     await _plugin.show(
       id: _notificationId,
       title: 'Falha na atualização',
@@ -221,7 +241,7 @@ class UpdateNotificationService {
 
   /// Usuário cancelou o download manualmente.
   Future<void> notifyCancelled() async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     await _plugin.show(
       id: _notificationId,
       title: 'Download cancelado',
@@ -238,7 +258,7 @@ class UpdateNotificationService {
 
   /// Remove a notificação de update (ex: ao fechar o dialog manualmente).
   Future<void> cancelNotification() async {
-    if (!_initialized) return;
+    if (!await _ensureInitialized()) return;
     await _plugin.cancel(id: _notificationId);
   }
 }

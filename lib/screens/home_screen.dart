@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
 import 'package:glopplayer/services/song_delete_service.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:glopplayer/services/recently_played_service.dart';
+import 'package:glopplayer/widgets/songs_list.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:glopplayer/components/songs_list.dart';
+import 'package:glopplayer/widgets/recently_played_view.dart';
 
 import '../services/music_library_service.dart';
 import '../services/player_controller.dart';
@@ -19,8 +21,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final MusicLibraryService _library = MusicLibraryService();
+  final RecentlyPlayedService _recentService = RecentlyPlayedService();
+  final GlobalKey<RecentlyPlayedViewState> _recentViewKey =
+      GlobalKey<RecentlyPlayedViewState>();
+
+  late final TabController _tabController;
 
   _LoadState _state = _LoadState.checking;
   String? _errorMessage;
@@ -29,9 +37,16 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _checkStatusOnly();
     _initPermissionFlow();
     _requestNotificationPermission();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkStatusOnly() async {
@@ -134,7 +149,26 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PlayerScreen()),
-    );
+    ).then((_) => _recentViewKey.currentState?.refresh());
+  }
+
+  /// Toque vindo da aba "Início" (histórico/álbuns recentes). Se a música
+  /// ainda está na biblioteca carregada, toca dentro do contexto normal
+  /// da fila (permite pular pra próxima/anterior). Se não estiver mais
+  /// (arquivo movido, cartão SD trocado, etc.), toca sozinha usando os
+  /// dados salvos no histórico.
+  void _openPlayerFromSong(SongModel song) {
+    final idx = _songs.indexWhere((s) => s.id == song.id);
+    if (idx != -1) {
+      _openPlayer(idx);
+      return;
+    }
+
+    context.read<PlayerController>().setPlaylist([song], initialIndex: 0);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PlayerScreen()),
+    ).then((_) => _recentViewKey.currentState?.refresh());
   }
 
   Future<void> _deleteSongs(List<SongModel> songsToDelete) async {
@@ -186,31 +220,6 @@ class _HomeScreenState extends State<HomeScreen> {
           body: Center(child: CircularProgressIndicator()),
         );
 
-      case _LoadState.needsPermission:
-        return Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Precisamos de permissão para acessar as músicas do aparelho.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _requestPermission,
-                    child: const Text('Conceder permissão'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-
       case _LoadState.error:
         return Scaffold(
           body: Center(
@@ -235,29 +244,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-        );
-
-      case _LoadState.ready:
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Minhas Músicas'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _loadLibrary,
-                tooltip: 'Atualizar biblioteca',
-              ),
-              // IconButton(
-              //   icon: const Icon(Icons.album),
-              //   onPressed: () => _showAlbumsDialog(),
-              //   tooltip: 'Ver álbuns',
-              // ),
-            ],
-          ),
-          body: MusicListItems(
-              songs: _songs,
-              onSongTap: _openPlayer,
-              onDeleteSongs: _deleteSongs),
         );
 
       case _LoadState.needsPermission:
@@ -287,6 +273,44 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+          ),
+        );
+
+      case _LoadState.ready:
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('GlopPlayer'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadLibrary,
+                tooltip: 'Atualizar biblioteca',
+              ),
+            ],
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(icon: Icon(Icons.home_outlined), text: 'Início'),
+                Tab(icon: Icon(Icons.library_music_outlined), text: 'Músicas'),
+              ],
+            ),
+          ),
+          // TabBarView já entrega o "arrastar pro lado" de graça — o
+          // usuário troca de aba tanto pelo toque quanto pelo swipe.
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              RecentlyPlayedView(
+                key: _recentViewKey,
+                recentService: _recentService,
+                onSongTap: _openPlayerFromSong,
+              ),
+              MusicListItems(
+                songs: _songs,
+                onSongTap: _openPlayer,
+                onDeleteSongs: _deleteSongs,
+              ),
+            ],
           ),
         );
     }

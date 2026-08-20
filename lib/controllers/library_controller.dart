@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 import '../db/library_database.dart'; // ajuste o caminho conforme seu projeto
 import '../services/library_scan_notifications_service.dart';

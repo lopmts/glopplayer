@@ -3,15 +3,17 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:glopplayer/services/music_library_service.dart';
 import 'package:glopplayer/services/playback_persistence_service.dart';
+import 'package:glopplayer/services/recently_played_service.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 import 'audio_player_handler.dart';
 
 class PlayerController extends ChangeNotifier {
   final MyAudioHandler _handler;
   final MusicLibraryService _library; // NOVO — injetado
+  final RecentlyPlayedService _recentlyPlayed; // NOVO — histórico de reprodução
   final PlaybackPersistenceService _persistence = PlaybackPersistenceService();
   Future<void>? _pendingAlbumAppend;
 
@@ -64,8 +66,12 @@ class PlayerController extends ChangeNotifier {
     await setPlaylist(songs, initialIndex: initialIndex);
   }
 
-  PlayerController(this._handler, {MusicLibraryService? library})
-      : _library = library ?? MusicLibraryService() {
+  PlayerController(
+    this._handler, {
+    MusicLibraryService? library,
+    RecentlyPlayedService? recentlyPlayed,
+  })  : _library = library ?? MusicLibraryService(),
+        _recentlyPlayed = recentlyPlayed ?? RecentlyPlayedService() {
     _handler.player.currentIndexStream.listen((index) {
       if (_suppressIndexStream) return;
       if (index != null &&
@@ -76,6 +82,7 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
         _maybeAdvanceAlbumQueue(); // NOVO
         unawaited(_saveWidgetState());
+        unawaited(_recordCurrentPlay()); // NOVO — histórico
       }
     });
 
@@ -93,6 +100,17 @@ class PlayerController extends ChangeNotifier {
         _handleUnexpectedCompletion(); // NOVO — fallback de segurança
       }
     });
+  }
+
+  // NOVO — registra a faixa atual no histórico de "tocadas recentemente"
+  Future<void> _recordCurrentPlay() async {
+    final song = currentSong;
+    if (song == null) return;
+    try {
+      await _recentlyPlayed.recordPlay(song);
+    } catch (_) {
+      // Histórico é "best effort" — falha aqui não deve afetar a reprodução
+    }
   }
 
   Future<void> _appendNextAlbumInQueue() async {
@@ -247,6 +265,9 @@ class PlayerController extends ChangeNotifier {
 
     _savePlaybackState();
     unawaited(_saveWidgetState());
+    unawaited(_recordCurrentPlay()); // NOVO — histórico (cobre a 1ª faixa,
+    // que não passa pelo listener de currentIndexStream por já começar
+    // no índice certo)
   }
 
   Future<void> playPause() async {

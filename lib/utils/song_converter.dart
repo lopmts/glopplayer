@@ -1,5 +1,5 @@
 import 'package:glopplayer/models/playlist_models.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 class SongConverter {
   static SongModel fromPlaylistSong(PlaylistSong playlistSong) {

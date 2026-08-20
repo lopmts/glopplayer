@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:glopplayer/components/create_playlist_dialog.dart';
+import 'package:glopplayer/widgets/create_playlist_dialog.dart';
 import 'package:glopplayer/models/playlist_models.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:on_audio_query_forked/on_audio_query.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 import '../widgets/artwork_thumbnail.dart';
 import 'pages/playlist_detail_screen.dart';

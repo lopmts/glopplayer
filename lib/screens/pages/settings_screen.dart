@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:glopplayer/services/update_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:glopplayer/widgets/update_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,6 +12,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
+  bool _checkingUpdate = false;
 
   @override
   void initState() {
@@ -23,6 +26,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _appVersion = '${info.version} (${info.buildNumber})';
     });
+  }
+
+  /// Checagem manual disparada pelo tile "Verificar atualizações".
+  /// Diferente da checagem silenciosa do boot: aqui sempre damos um
+  /// feedback visual, seja update disponível, já atualizado ou erro.
+  Future<void> _checkForUpdatesManually() async {
+    if (_checkingUpdate) return;
+
+    setState(() => _checkingUpdate = true);
+
+    final result = await UpdateService.instance.checkForUpdate();
+
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+
+    switch (result.status) {
+      case UpdateCheckStatus.updateAvailable:
+        showUpdateDialog(
+          context,
+          result.release!,
+          currentVersion: result.currentVersion,
+        );
+        break;
+
+      case UpdateCheckStatus.upToDate:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Você já está na versão mais recente. 🎉'),
+          ),
+        );
+        break;
+
+      case UpdateCheckStatus.error:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.error ?? 'Não foi possível checar atualizações.',
+            ),
+            action: SnackBarAction(
+              label: 'Tentar de novo',
+              onPressed: _checkForUpdatesManually,
+            ),
+          ),
+        );
+        break;
+    }
   }
 
   @override
@@ -92,9 +141,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _SettingsTile(
                   icon: Icons.system_update_outlined,
                   title: 'Verificar atualizações',
-                  subtitle: 'Checar se há uma nova versão disponível',
-                  onTap: () => Navigator.pushNamed(
-                      context, '/pages/check_update_screen'),
+                  subtitle: _checkingUpdate
+                      ? 'Verificando...'
+                      : 'Checar se há uma nova versão disponível',
+                  onTap: _checkingUpdate ? null : _checkForUpdatesManually,
+                  showArrow: !_checkingUpdate,
+                  isLoading: _checkingUpdate,
                 ),
                 _SettingsTile(
                   icon: Icons.article_outlined,
@@ -154,6 +206,7 @@ class _SettingsTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback? onTap;
   final bool showArrow;
+  final bool isLoading;
 
   const _SettingsTile({
     required this.icon,
@@ -161,6 +214,7 @@ class _SettingsTile extends StatelessWidget {
     required this.subtitle,
     this.onTap,
     this.showArrow = true,
+    this.isLoading = false,
   });
 
   @override
@@ -198,7 +252,16 @@ class _SettingsTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (showArrow)
+            if (isLoading)
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: cs.onSurfaceVariant,
+                ),
+              )
+            else if (showArrow)
               Icon(
                 Icons.chevron_right,
                 color: cs.onSurfaceVariant,
