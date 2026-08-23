@@ -64,7 +64,7 @@ class UpdateService {
   UpdateService._internal();
   static final UpdateService instance = UpdateService._internal();
 
-  static const String owner = 'glopmts';
+  static const String owner = 'lopmts';
   static const String repo = 'glopplayer';
 
   /// Timeout para a checagem de release (chamada leve à API do GitHub).

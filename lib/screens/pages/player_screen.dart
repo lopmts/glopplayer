@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:glopplayer/widgets/speed_Button_player.dart';
 import 'package:glopplayer/services/lyrics_song.dart';
+import 'package:glopplayer/controllers/favorites_controller.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -94,6 +95,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return '$minutes:$seconds';
   }
 
+  // NOVO — favoritar/desfavoritar a música atual. O ícone já reflete o
+  // estado atual via Consumer<FavoritesController> no build(); aqui só
+  // disparamos o toggle e mostramos um feedback rápido.
+  Future<void> _toggleFavorite(SongModel song) async {
+    final favorites = context.read<FavoritesController?>();
+    if (favorites == null) return;
+    final isNowFavorite = await favorites.toggle(song);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 1),
+        content: Text(
+          isNowFavorite ? 'Adicionada aos favoritos' : 'Removida dos favoritos',
+        ),
+      ),
+    );
+  }
+
   /// Extrai a cor dominante/vibrante da capa e atualiza o fundo da tela.
   /// Só reprocessa quando a música muda (evita recalcular a cada rebuild).
   Future<void> _updatePalette(int songId, Uint8List? bytes) async {
@@ -168,6 +188,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
         centerTitle: true,
         actions: [
+          // NOVO — botão de favoritar. Consumer isolado pra só esse ícone
+          // reconstruir quando o estado de favoritos mudar, sem rebuildar
+          // a tela inteira.
+          Consumer<FavoritesController?>(
+            builder: (context, favorites, _) {
+              final isFavorite = favorites?.isFavorite(song.id) ?? false;
+              return IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: isFavorite ? Colors.redAccent : Colors.white,
+                ),
+                tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
+                onPressed: favorites == null
+                  ? null
+                  : () => _toggleFavorite(song),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.lyrics_outlined),
             tooltip: 'Letra',

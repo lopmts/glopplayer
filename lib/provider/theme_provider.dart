@@ -3,8 +3,6 @@ import 'package:glopplayer/models/theme_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  static const _prefsKey = 'theme_settings_json';
-
   ThemeSettings _settings = const ThemeSettings();
   ThemeSettings get settings => _settings;
 

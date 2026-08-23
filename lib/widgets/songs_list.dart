@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:glopplayer/screens/pages/metadata_editor_screen.dart';
 import 'package:glopplayer/widgets/add_to_playlist_dialog.dart';
 import 'package:glopplayer/controllers/library_controller.dart';
 import 'package:glopplayer/utils/format_utils.dart';
@@ -39,6 +40,11 @@ class _MusicListScreenState extends State<MusicListItems> {
   static const double _itemHeight = 72;
   int _visibleCount = _pageSize;
   String _query = '';
+
+  // --- Filtros (artista / gênero) ---------------------------------------
+  String? _artistFilter;
+  String? _genreFilter;
+  bool get _hasActiveFilter => _artistFilter != null || _genreFilter != null;
 
   // --- Seleção múltipla -----------------------------------------------
   final Set<int> _selectedIds = {};
@@ -85,11 +91,38 @@ class _MusicListScreenState extends State<MusicListItems> {
     return false;
   }
 
-  List<SongModel> _filteredSongs(List<String> folders) {
+  /// Aplica o filtro de pastas (config da biblioteca) — usado como base
+  /// tanto pra lista final quanto pra calcular as opções disponíveis nos
+  /// dropdowns de artista/gênero.
+  Iterable<SongModel> _folderScoped(List<String> folders) {
     Iterable<SongModel> base = widget.songs;
-
     if (folders.isNotEmpty) {
       base = base.where((song) => _isInsideAnyFolder(song.data, folders));
+    }
+    return base;
+  }
+
+  List<SongModel> _filteredSongs(List<String> folders) {
+    Iterable<SongModel> base = _folderScoped(folders);
+
+    if (_artistFilter != null) {
+      base = base.where(
+        (song) =>
+            (song.artist?.trim().isNotEmpty == true
+                ? song.artist!.trim()
+                : 'Artista desconhecido') ==
+            _artistFilter,
+      );
+    }
+
+    if (_genreFilter != null) {
+      base = base.where(
+        (song) =>
+            (song.genre?.trim().isNotEmpty == true
+                ? song.genre!.trim()
+                : 'Sem gênero') ==
+            _genreFilter,
+      );
     }
 
     if (_query.isNotEmpty) {
@@ -104,6 +137,54 @@ class _MusicListScreenState extends State<MusicListItems> {
     return base.toList();
   }
 
+  /// Artistas disponíveis dentro do escopo de pastas atual — não leva em
+  /// conta o próprio filtro de artista (senão o dropdown "encolheria"
+  /// pra uma única opção assim que algo fosse selecionado), mas respeita
+  /// o filtro de gênero, pra a lista de artistas já vir "combinável".
+  List<String> _availableArtists(List<String> folders) {
+    Iterable<SongModel> base = _folderScoped(folders);
+    if (_genreFilter != null) {
+      base = base.where(
+        (song) =>
+            (song.genre?.trim().isNotEmpty == true
+                ? song.genre!.trim()
+                : 'Sem gênero') ==
+            _genreFilter,
+      );
+    }
+    final set = base
+        .map((s) => s.artist?.trim().isNotEmpty == true
+            ? s.artist!.trim()
+            : 'Artista desconhecido')
+        .toSet()
+        .toList();
+    set.sort();
+    return set;
+  }
+
+  /// Gêneros/tipos disponíveis dentro do escopo de pastas atual, já
+  /// considerando o filtro de artista ativo (mesma lógica do método
+  /// acima, espelhada).
+  List<String> _availableGenres(List<String> folders) {
+    Iterable<SongModel> base = _folderScoped(folders);
+    if (_artistFilter != null) {
+      base = base.where(
+        (song) =>
+            (song.artist?.trim().isNotEmpty == true
+                ? song.artist!.trim()
+                : 'Artista desconhecido') ==
+            _artistFilter,
+      );
+    }
+    final set = base
+        .map((s) =>
+            s.genre?.trim().isNotEmpty == true ? s.genre!.trim() : 'Sem gênero')
+        .toSet()
+        .toList();
+    set.sort();
+    return set;
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
@@ -112,6 +193,23 @@ class _MusicListScreenState extends State<MusicListItems> {
         _query = value;
         _visibleCount = _pageSize;
       });
+    });
+  }
+
+  void _applyFilters({String? artist, String? genre}) {
+    setState(() {
+      _artistFilter = artist;
+      _genreFilter = genre;
+      _visibleCount = _pageSize;
+    });
+  }
+
+  void _clearFilters() {
+    if (!_hasActiveFilter) return;
+    setState(() {
+      _artistFilter = null;
+      _genreFilter = null;
+      _visibleCount = _pageSize;
     });
   }
 
@@ -228,6 +326,151 @@ class _MusicListScreenState extends State<MusicListItems> {
     _clearSelection();
   }
 
+  // --- Edição de metadados -------------------------------------------------
+
+  /// Abre a tela de edição de metadados pras músicas passadas. Funciona
+  /// tanto pra uma única música (a partir do menu "..." de cada item)
+  /// quanto pra várias de uma vez (a partir da barra de seleção).
+  Future<void> _openMetadataEditor(List<SongModel> songs) async {
+    if (songs.isEmpty) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MetadataEditorScreen(
+          songs: songs,
+          onSaved: (savedSongs) async {
+            // Reescaneia a biblioteca pra atualizar título/artista/capa
+            // exibidos nas listas e no cache local.
+            await context.read<LibraryController>().scanLibrary();
+          },
+        ),
+      ),
+    );
+
+    if (mounted && _selectionMode) {
+      _clearSelection();
+    }
+  }
+
+  // --- Filtro por artista/gênero -----------------------------------------
+
+  Future<void> _showFilterSheet(List<String> folders) async {
+    final artists = _availableArtists(folders);
+    final genres = _availableGenres(folders);
+
+    String? tempArtist = _artistFilter;
+    String? tempGenre = _genreFilter;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Filtrar músicas',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: (tempArtist == null && tempGenre == null)
+                            ? null
+                            : () => setSheetState(() {
+                                  tempArtist = null;
+                                  tempGenre = null;
+                                }),
+                        child: const Text('Limpar'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (artists.isNotEmpty) ...[
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: tempArtist,
+                      decoration: InputDecoration(
+                        labelText: 'Artista',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      hint: const Text('Todos'),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('Todos'),
+                        ),
+                        ...artists.map(
+                          (a) => DropdownMenuItem<String>(
+                            value: a,
+                            child: Text(a, overflow: TextOverflow.ellipsis),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) => setSheetState(() => tempArtist = v),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (genres.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: tempGenre,
+                      decoration: InputDecoration(
+                        labelText: 'Gênero / tipo',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      hint: const Text('Todos'),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('Todos'),
+                        ),
+                        ...genres.map(
+                          (g) => DropdownMenuItem<String>(
+                            value: g,
+                            child: Text(g, overflow: TextOverflow.ellipsis),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) => setSheetState(() => tempGenre = v),
+                    ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: () {
+                      _applyFilters(artist: tempArtist, genre: tempGenre);
+                      Navigator.pop(sheetContext);
+                    },
+                    child: const Text('Aplicar filtros'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final folders = context.watch<LibraryController>().folders;
@@ -236,7 +479,10 @@ class _MusicListScreenState extends State<MusicListItems> {
 
     return Column(
       children: [
-        _selectionMode ? _buildSelectionBar(filtered) : _buildSearchBar(),
+        _selectionMode
+            ? _buildSelectionBar(filtered)
+            : _buildSearchBar(folders),
+        if (!_selectionMode && _hasActiveFilter) _buildActiveFilterChips(),
         Expanded(
           child: widget.songs.isEmpty
               ? const Center(
@@ -244,9 +490,9 @@ class _MusicListScreenState extends State<MusicListItems> {
               : filtered.isEmpty
                   ? Center(
                       child: Text(
-                        _query.isEmpty
+                        _query.isEmpty && !_hasActiveFilter
                             ? 'Nenhuma música nas pastas selecionadas'
-                            : 'Nenhum resultado para essa busca',
+                            : 'Nenhum resultado para esse filtro/busca',
                       ),
                     )
                   : ListView.builder(
@@ -296,31 +542,77 @@ class _MusicListScreenState extends State<MusicListItems> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(List<String> folders) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: TextField(
-        controller: _searchController,
-        onChanged: _onSearchChanged,
-        decoration: InputDecoration(
-          hintText: 'Buscar música ou artista...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _query.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    _onSearchChanged('');
-                  },
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Buscar música ou artista...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                      ),
+                filled: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
                 ),
-          filled: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          Badge(
+            isLabelVisible: _hasActiveFilter,
+            smallSize: 8,
+            child: IconButton.filledTonal(
+              icon: const Icon(Icons.filter_list),
+              tooltip: 'Filtrar por artista/gênero',
+              onPressed: () => _showFilterSheet(folders),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterChips() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          if (_artistFilter != null)
+            InputChip(
+              label: Text(_artistFilter!),
+              avatar: const Icon(Icons.person_outline, size: 18),
+              onDeleted: () => _applyFilters(artist: null, genre: _genreFilter),
+            ),
+          if (_genreFilter != null)
+            InputChip(
+              label: Text(_genreFilter!),
+              avatar: const Icon(Icons.category_outlined, size: 18),
+              onDeleted: () =>
+                  _applyFilters(artist: _artistFilter, genre: null),
+            ),
+          ActionChip(
+            label: const Text('Limpar tudo'),
+            avatar: const Icon(Icons.filter_alt_off, size: 18),
+            onPressed: _clearFilters,
+          ),
+        ],
       ),
     );
   }
@@ -356,6 +648,11 @@ class _MusicListScreenState extends State<MusicListItems> {
                   _selectAll(filtered);
                 }
               },
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Editar metadados',
+              onPressed: () => _openMetadataEditor(_selectedSongs(filtered)),
             ),
             IconButton(
               icon: const Icon(Icons.playlist_add),
@@ -405,6 +702,14 @@ class _MusicListScreenState extends State<MusicListItems> {
                   context: context,
                   builder: (_) => AddToPlaylistDialog(songs: [song]),
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Editar metadados'),
+              onTap: () {
+                Navigator.pop(context);
+                _openMetadataEditor([song]);
               },
             ),
             ListTile(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:glopplayer/main.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
+import 'package:glopplayer/screens/pages/favorites_screen.dart';
 import 'package:glopplayer/services/song_delete_service.dart';
 import 'package:glopplayer/services/recently_played_service.dart';
 import 'package:glopplayer/widgets/songs_list.dart';
@@ -37,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _checkStatusOnly();
     _initPermissionFlow();
     _requestNotificationPermission();
@@ -292,6 +294,9 @@ class _HomeScreenState extends State<HomeScreen>
               tabs: const [
                 Tab(icon: Icon(Icons.home_outlined), text: 'Início'),
                 Tab(icon: Icon(Icons.library_music_outlined), text: 'Músicas'),
+                Tab(
+                    icon: Icon(Icons.favorite_outlined),
+                    text: 'Favoritas'), // Add this
               ],
             ),
           ),
@@ -309,6 +314,12 @@ class _HomeScreenState extends State<HomeScreen>
                 songs: _songs,
                 onSongTap: _openPlayer,
                 onDeleteSongs: _deleteSongs,
+              ),
+              FavoritesScreen(
+                onSongTap: (song) {
+                  // Get the controller from context
+                  context.read<PlayerController>().playSong(song);
+                },
               ),
             ],
           ),

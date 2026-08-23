@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:glopplayer/models/update_models.dart';
 import 'package:glopplayer/services/update_notification_service.dart';
 import 'package:glopplayer/services/update_service.dart';
@@ -273,9 +274,12 @@ class _InfoContent extends StatelessWidget {
           const SizedBox(height: 4),
           Flexible(
             child: SingleChildScrollView(
-              child: Text(
-                release.changelog.trim(),
-                style: Theme.of(context).textTheme.bodyMedium,
+              child: MarkdownBody(
+                data: release.changelog.trim(),
+                styleSheet: MarkdownStyleSheet(
+                  p: Theme.of(context).textTheme.bodyMedium,
+                  // Customize other styles as needed
+                ),
               ),
             ),
           ),

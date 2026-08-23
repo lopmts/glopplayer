@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:glopplayer/controllers/favorites_controller.dart';
+import 'package:glopplayer/screens/pages/favorites_screen.dart';
 import 'package:glopplayer/screens/pages/log_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:glopplayer/controllers/library_controller.dart';
@@ -131,6 +133,7 @@ class _MyAppState extends State<MyApp> {
             create: (_) => PlaylistProvider()..loadPlaylists()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LibraryController()),
+        ChangeNotifierProvider(create: (_) => FavoritesController()),
       ],
       child: DynamicColorWrapper(
         builder: (context, lightTheme, darkTheme, mode) {
@@ -150,6 +153,14 @@ class _MyAppState extends State<MyApp> {
               '/pages/cache_management_screen': (context) =>
                   const CacheManagementScreen(),
               '/pages/logs_screen': (context) => const LogsScreen(),
+              '/pages/favorites': (context) => FavoritesScreen(
+                    onSongTap: (song) {
+                      // Handle the song tap - you'll need to implement this
+                      // based on how you want to play the song
+                      playerController
+                          .playSong(song); // Or whatever method you have
+                    },
+                  ),
             },
           );
         },

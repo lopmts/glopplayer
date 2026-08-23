@@ -1,6 +1,3 @@
-// playlist_models.dart
-import 'package:on_audio_query/on_audio_query.dart';
-
 class Playlist {
   final int id;
   final String name;

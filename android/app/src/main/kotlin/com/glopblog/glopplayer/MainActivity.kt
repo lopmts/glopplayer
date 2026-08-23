@@ -5,6 +5,7 @@ import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.Intent
 import android.content.IntentSender
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -16,7 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
     private val DELETE_CHANNEL = "com.glopblog.glopplayer/delete_song"
     private val DELETE_REQUEST_CODE = 1001
-
+    private val CHANNEL = "glopplayer/media_scanner"
     // Guarda o result do MethodChannel enquanto espera o usuário confirmar
     // no diálogo do sistema (fluxo assíncrono via onActivityResult).
     private var pendingDeleteResult: MethodChannel.Result? = null
@@ -29,6 +30,7 @@ class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine) // deixa o audio_service registrar o dele primeiro
 
+        // Channel para deletar músicas
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DELETE_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -41,6 +43,27 @@ class MainActivity : AudioServiceActivity() {
                         deleteSongs(ids, result)
                     }
                     else -> result.notImplemented()
+                }
+            }
+
+        // Channel para scanear arquivos de mídia
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "scanFile") {
+                    val path = call.argument<String>("path")
+                    if (path != null) {
+                        MediaScannerConnection.scanFile(
+                            applicationContext,
+                            arrayOf(path),
+                            null,
+                            null,
+                        )
+                        result.success(null)
+                    } else {
+                        result.error("NO_PATH", "Nenhum path informado", null)
+                    }
+                } else {
+                    result.notImplemented()
                 }
             }
     }
