@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../widgets/artwork_thumbnail.dart';
-import '../../services/player_controller.dart';
+import '../../controllers/player_controller.dart';
 import 'player_screen.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {

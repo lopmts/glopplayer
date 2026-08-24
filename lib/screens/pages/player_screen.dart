@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:glopplayer/services/lyrics_service.dart';
 import 'package:glopplayer/widgets/speed_Button_player.dart';
 import 'package:glopplayer/services/lyrics_song.dart';
 import 'package:glopplayer/controllers/favorites_controller.dart';
@@ -11,7 +12,7 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
 
 import '../../widgets/add_to_playlist_dialog.dart';
-import '../../services/player_controller.dart';
+import '../../controllers/player_controller.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/artwork_thumbnail.dart';
 
@@ -200,9 +201,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   color: isFavorite ? Colors.redAccent : Colors.white,
                 ),
                 tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
-                onPressed: favorites == null
-                  ? null
-                  : () => _toggleFavorite(song),
+                onPressed:
+                    favorites == null ? null : () => _toggleFavorite(song),
               );
             },
           ),
@@ -525,7 +525,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ),
       builder: (sheetContext) => LyricsSheet(
         song: song,
-        lyricsFetcher: widget.lyricsFetcher,
+        lyricsFetcher: LyricsService.instance.fetch,
       ),
     );
   }

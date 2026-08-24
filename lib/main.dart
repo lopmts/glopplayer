@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:glopplayer/controllers/favorites_controller.dart';
 import 'package:glopplayer/screens/pages/favorites_screen.dart';
 import 'package:glopplayer/screens/pages/log_screen.dart';
+import 'package:glopplayer/screens/pages/player_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:glopplayer/controllers/library_controller.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
@@ -17,7 +18,7 @@ import 'package:glopplayer/theme/dynamic_color_wrapper.dart';
 import 'package:provider/provider.dart';
 import 'package:glopplayer/widgets/tabs_navegation.dart';
 import 'services/audio_player_handler.dart';
-import 'services/player_controller.dart';
+import 'controllers/player_controller.dart';
 import 'package:glopplayer/widgets/update_dialog.dart';
 
 late MyAudioHandler audioHandler;
@@ -155,10 +156,9 @@ class _MyAppState extends State<MyApp> {
               '/pages/logs_screen': (context) => const LogsScreen(),
               '/pages/favorites': (context) => FavoritesScreen(
                     onSongTap: (song) {
-                      // Handle the song tap - you'll need to implement this
-                      // based on how you want to play the song
-                      playerController
-                          .playSong(song); // Or whatever method you have
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                      );
                     },
                   ),
             },

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:glopplayer/screens/pages/player_screen.dart';
 import 'package:glopplayer/services/music_library_service.dart';
-import 'package:glopplayer/services/player_controller.dart';
+import 'package:glopplayer/controllers/player_controller.dart';
 import 'package:glopplayer/utils/format_utils.dart';
 import 'package:glopplayer/widgets/artwork_thumbnail.dart';
 import 'package:on_audio_query/on_audio_query.dart';

@@ -35,7 +35,10 @@ class MetadataService {
     await init();
     try {
       return await MetadataGod.readMetadata(file: path);
-    } catch (e) {
+    } catch (e, st) {
+      // TEMPORÁRIO — precisa ver o que está acontecendo de verdade
+      // ignore: avoid_print
+      print('❌ metadata_god falhou em "$path": $e');
       return null;
     }
   }

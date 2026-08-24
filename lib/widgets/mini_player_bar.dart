@@ -4,7 +4,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../screens/pages/player_screen.dart';
-import '../services/player_controller.dart';
+import '../controllers/player_controller.dart';
 
 /// Barra fixa mostrando a música atual, com progresso e controles rápidos.
 /// Deve ficar no "shell" persistente do app (ex: MainTabScreen), acima da

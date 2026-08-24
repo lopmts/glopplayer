@@ -8,7 +8,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
-import 'audio_player_handler.dart';
+import '../services/audio_player_handler.dart';
 
 class PlayerController extends ChangeNotifier {
   final MyAudioHandler _handler;
@@ -229,6 +229,17 @@ class PlayerController extends ChangeNotifier {
   void _schedulePositionSave() {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(seconds: 3), _savePlaybackState);
+  }
+
+  Future<void> playQueue(List<SongModel> songs, {int initialIndex = 0}) async {
+    _currentAlbum = null;
+    _currentAlbumStartIndex = 0;
+    _currentAlbumLength = 0;
+    _nextAlbumAppended = false;
+    _pendingNextAlbum = null;
+    _pendingNextAlbumLength = 0;
+
+    await setPlaylist(songs, initialIndex: initialIndex);
   }
 
   Future<void> _savePlaybackState() async {

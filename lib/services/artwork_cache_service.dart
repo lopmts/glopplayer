@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:glopplayer/db/songs_db.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,6 +28,59 @@ class ArtworkCacheService {
     _inFlight[key] = future;
     future.whenComplete(() => _inFlight.remove(key));
     return future;
+  }
+
+  Future<Uint8List?> getBestArtwork(int id, ArtworkType type) async {
+    // 1. Tenta cache local
+    final cachePath = await getArtworkPath(id, type);
+    if (cachePath != null) {
+      try {
+        final file = File(cachePath);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          if (bytes.isNotEmpty) return bytes;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Tenta query do sistema
+    try {
+      final bytes = await OnAudioQuery().queryArtwork(
+        id,
+        type,
+        format: ArtworkFormat.JPEG,
+        size: 400,
+        quality: 85,
+      );
+      if (bytes != null && bytes.isNotEmpty) {
+        // Salva no cache
+        await saveArtwork(id, type, bytes);
+        return bytes;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  Future<String?> saveArtwork(
+    int id,
+    ArtworkType type,
+    Uint8List bytes,
+  ) async {
+    if (bytes.isEmpty) return null;
+
+    final key = '${type.name}-$id';
+    final dir = await getTemporaryDirectory();
+    final artworkDir = Directory('${dir.path}/artwork_cache');
+    if (!await artworkDir.exists()) {
+      await artworkDir.create(recursive: true);
+    }
+
+    final file = File('${artworkDir.path}/${type.name}_$id.jpg');
+    await file.writeAsBytes(bytes, flush: true);
+    await SongsDb.saveArtworkPath(key, file.path);
+    _memCache[key] = file.path;
+    return file.path;
   }
 
   Future<String?> _resolve(int id, ArtworkType type, String key) async {

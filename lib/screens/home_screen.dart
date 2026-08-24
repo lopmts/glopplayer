@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:glopplayer/widgets/recently_played_view.dart';
 
 import '../services/music_library_service.dart';
-import '../services/player_controller.dart';
+import '../controllers/player_controller.dart';
 import 'pages/player_screen.dart';
 
 enum _LoadState { checking, needsPermission, loadingLibrary, ready, error }
@@ -317,8 +317,10 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               FavoritesScreen(
                 onSongTap: (song) {
-                  // Get the controller from context
-                  context.read<PlayerController>().playSong(song);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                  ).then((_) => _recentViewKey.currentState?.refresh());
                 },
               ),
             ],

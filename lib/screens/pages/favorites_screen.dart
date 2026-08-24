@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:glopplayer/controllers/player_controller.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
@@ -54,6 +55,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         const SnackBar(content: Text('Favoritas removidas')),
       );
     }
+  }
+
+  void _playFavorite(
+      BuildContext context, List<FavoriteEntry> list, int index) {
+    final songs = list.map((e) => e.toSongModel()).toList();
+    context.read<PlayerController>().playQueue(songs, initialIndex: index);
+    widget.onSongTap(songs[index]);
   }
 
   @override
@@ -196,7 +204,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                               tooltip: 'Remover dos favoritos',
                               onPressed: () => controller.remove(e.songId),
                             ),
-                            onTap: () => widget.onSongTap(e.toSongModel()),
+                            onTap: () => _playFavorite(context, entries, i),
                           );
                         },
                       ),

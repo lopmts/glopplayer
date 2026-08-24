@@ -7,7 +7,7 @@ import 'package:glopplayer/controllers/library_controller.dart';
 import 'package:glopplayer/utils/format_utils.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
-import '../services/player_controller.dart';
+import '../controllers/player_controller.dart';
 import 'artwork_thumbnail.dart';
 import '../screens/pages/player_screen.dart';
 

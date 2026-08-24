@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:glopplayer/services/artwork_cache_service.dart';
 import 'package:glopplayer/services/cover_search_service.dart';
 import 'package:glopplayer/services/media_scanner_service.dart';
 import 'package:glopplayer/services/metadata_service.dart';
@@ -100,8 +102,8 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       try {
         meta = await MetadataService.read(song.data)
             .timeout(const Duration(seconds: 8));
-      } catch (_) {
-        meta = null; // arquivo problemático — segue sem travar os outros
+      } catch (e) {
+        meta = null;
       }
       tags.add(meta);
     }
@@ -137,6 +139,56 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     _trackNumberCtrl.text =
         _isBatch ? '' : (tags.first?.trackNumber?.toString() ?? '');
     _discNumberCtrl.text = commonInt(tags.map((t) => t?.discNumber));
+    var cover = tags.first?.picture?.data;
+
+    // 1. Tenta capa embutida primeiro (mais rápida e confiável)
+    if (tags.first?.picture?.data != null) {
+      cover = tags.first!.picture!.data;
+    }
+    // 2. Se não tiver capa embutida, busca do cache local
+    else {
+      final path = await ArtworkCacheService.instance.getArtworkPath(
+        widget.songs.first.id,
+        ArtworkType.AUDIO,
+      );
+      if (path != null) {
+        try {
+          cover = await File(path).readAsBytes();
+        } catch (_) {
+          // arquivo de cache sumiu/corrompeu — segue sem capa
+        }
+      }
+    }
+
+    // 3. Se ainda não tiver capa, tenta extrair do sistema
+    if (cover == null && !_isBatch) {
+      // O OnAudioQuery já foi chamado pelo ArtworkCacheService
+      // mas podemos tentar novamente como fallback
+      try {
+        final systemArtwork = await OnAudioQuery().queryArtwork(
+          widget.songs.first.id,
+          ArtworkType.AUDIO,
+          format: ArtworkFormat.JPEG,
+          size: 400,
+          quality: 85,
+        );
+        if (systemArtwork != null && systemArtwork.isNotEmpty) {
+          cover = systemArtwork;
+          // Salva no cache para uso futuro
+          await ArtworkCacheService.instance.saveArtwork(
+            widget.songs.first.id,
+            ArtworkType.AUDIO,
+            cover!,
+          );
+        }
+      } catch (_) {
+        // ignora erros
+      }
+    }
+
+    _previewCoverBytes = cover;
+
+    if (mounted) setState(() => _loading = false);
 
     if (!_isBatch) {
       _previewCoverBytes = tags.first?.picture?.data;
@@ -177,6 +229,46 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
   }
 
   Future<void> _searchOnline() async {
+    // Primeiro, mostra um diálogo de carregamento enquanto busca localmente
+    if (_previewCoverBytes == null && !_isBatch) {
+      // Mostra um snackbar indicando que está buscando localmente
+      final snackBar = SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            const Text('Verificando capa local...'),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+
+      // Tenta carregar do cache local novamente
+      final path = await ArtworkCacheService.instance.getArtworkPath(
+        widget.songs.first.id,
+        ArtworkType.AUDIO,
+      );
+      if (path != null) {
+        try {
+          final bytes = await File(path).readAsBytes();
+          if (bytes.isNotEmpty) {
+            setState(() {
+              _previewCoverBytes = bytes;
+              _pendingCover = _PendingCoverAction.none;
+            });
+            _showSnack('Capa local encontrada!');
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Se não encontrou localmente, mostra a busca online
     final query = [_artistCtrl.text, _albumCtrl.text]
         .where((s) => s.trim().isNotEmpty)
         .join(' ');
@@ -189,6 +281,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       ),
       builder: (_) => _CoverSearchSheet(initialQuery: query),
     );
+
     if (result == null) return;
 
     try {
@@ -210,7 +303,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     });
   }
 
-  // --- Salvar ----------------------------------------------------------------
+  // --- Salvar
 
   Future<void> _save() async {
     setState(() {

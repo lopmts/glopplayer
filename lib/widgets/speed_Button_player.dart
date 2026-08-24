@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:glopplayer/services/player_controller.dart';
+import 'package:glopplayer/controllers/player_controller.dart';
 
 class SpeedButton extends StatelessWidget {
   final PlayerController controller;
