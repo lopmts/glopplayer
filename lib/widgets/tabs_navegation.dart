@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:glopplayer/widgets/mini_player_bar.dart';
-import 'package:glopplayer/screens/album_screen.dart';
+import 'package:glopplayer/screens/albums_screen.dart';
 import 'package:glopplayer/screens/home_screen.dart';
 import 'package:glopplayer/screens/music_list_screen.dart';
 import 'package:glopplayer/screens/pages/settings_screen.dart';
 import 'package:glopplayer/screens/playlist_screen.dart';
+import 'package:glopplayer/widgets/mini_player_bar.dart';
 
 class MainTabScreen extends StatefulWidget {
   const MainTabScreen({super.key});

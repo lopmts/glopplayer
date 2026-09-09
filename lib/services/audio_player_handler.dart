@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -16,6 +17,36 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   AudioPlayer get player => _player;
 
+  // ---- CROSSFADE -----------------------------------------------------
+  // Player secundário e independente, usado só durante a janela de
+  // transição. Fica ocioso (sem AudioSource) o resto do tempo.
+  final AudioPlayer _crossfadePlayer = AudioPlayer();
+
+  bool _crossfadeEnabled = false;
+  Duration _crossfadeDuration = const Duration(seconds: 4);
+  static const _crossfadeTriggerMargin = Duration(milliseconds: 300);
+  static const _crossfadeStepInterval = Duration(milliseconds: 100);
+
+  bool _crossfading = false; // fade em andamento
+  bool _crossfadeArmed = false; // já disparado pra ESTA faixa (evita retrigger)
+  Timer? _crossfadeTimer;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<PlayerState>? _crossfadePlayerStateSub;
+
+  /// Chamado pela tela de configurações (via PlayerController) sempre que
+  /// o usuário muda o toggle ou a duração.
+  void updateCrossfadeSettings({
+    required bool enabled,
+    required Duration duration,
+  }) {
+    _crossfadeEnabled = enabled;
+    _crossfadeDuration = duration;
+    if (!enabled) {
+      unawaited(_cancelCrossfade(restoreVolume: true));
+    }
+  }
+  // ----------------------------------------------------------------------
+
   MyAudioHandler() {
     _init();
   }
@@ -28,9 +59,10 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     return song.uri ?? '';
   }
 
-  
-
   Future<void> setSongs(List<SongModel> songs, {int initialIndex = 0}) async {
+    await _cancelCrossfade(
+        restoreVolume: true); // NOVO — troca de fila cancela fade
+
     final items = <MediaItem>[];
     final sources = <AudioSource>[];
 
@@ -109,10 +141,6 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final offset = updatedQueue.length - newItems.length;
     queue.add(updatedQueue);
 
-    // NOVO — resolve a artwork da PRIMEIRA faixa do próximo álbum de forma
-    // bloqueante, pra garantir que ela já esteja pronta quando a troca
-    // de faixa acontecer (é essa faixa que vai aparecer na notificação
-    // primeiro; o resto do álbum pode resolver em background com calma)
     if (songs.isNotEmpty) {
       final firstSong = songs.first;
       final cacheKey = firstSong.albumId ?? firstSong.id;
@@ -130,13 +158,9 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     }
 
-    // Resto do álbum resolve em background, sem bloquear
     _resolveArtworkForRange(songs, updatedQueue, offset);
   }
 
-  // Refatorado a partir do _resolveArtworkInBackground original, agora
-  // aceita um offset pra funcionar tanto na carga inicial (offset 0)
-  // quanto no append (offset = tamanho da queue antes de anexar)
   Future<void> _resolveArtworkForRange(
     List<SongModel> songs,
     List<MediaItem> fullQueueItems,
@@ -182,8 +206,136 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (index != null && index >= 0 && index < items.length) {
         mediaItem.add(items[index]);
       }
+      // Toda vez que o índice muda (seja por handoff manual do crossfade
+      // ou avanço natural), a faixa é "nova" -> pode disparar crossfade
+      // de novo quando chegar perto do fim dela.
+      _crossfadeArmed = false;
     });
+
+    // NOVO — monitor de posição pra disparar o crossfade
+    _positionSub = _player.positionStream.listen(_maybeStartCrossfade);
   }
+
+  // ---- CROSSFADE: lógica principal ------------------------------------
+
+  void _maybeStartCrossfade(Duration position) {
+    if (!_crossfadeEnabled) return;
+    if (_crossfading || _crossfadeArmed) return;
+    if (!_player.playing) return;
+    if (_crossfadeDuration <= Duration.zero) return;
+
+    final duration = _player.duration;
+    if (duration == null || duration == Duration.zero) return;
+
+    final nextIndex = _player.nextIndex;
+    if (nextIndex == null)
+      return; // não tem próxima faixa -> deixa tocar normal
+
+    final triggerAt = duration - _crossfadeDuration - _crossfadeTriggerMargin;
+    if (triggerAt <= Duration.zero)
+      return; // faixa curta demais pro fade configurado
+    if (position < triggerAt) return;
+
+    _crossfadeArmed = true;
+    unawaited(_startCrossfade(nextIndex));
+  }
+
+  Future<void> _startCrossfade(int nextIndex) async {
+    if (_crossfading) return;
+    final items = queue.value;
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+
+    final nextItem = items[nextIndex];
+    if (nextItem.id.isEmpty) return;
+
+    _crossfading = true;
+
+    try {
+      await _crossfadePlayer.setVolume(0);
+      await _crossfadePlayer.setUrl(nextItem.id, preload: true);
+    } catch (e) {
+      debugPrint('ERRO AO PRÉ-CARREGAR CROSSFADE: $e');
+      _crossfading = false;
+      return;
+    }
+
+    // Se o usuário mudou algo (pausou, pulou) enquanto a gente preparava,
+    // aborta antes de começar a tocar por cima.
+    if (!_crossfading || !_player.playing) {
+      await _crossfadePlayer.stop();
+      _crossfading = false;
+      return;
+    }
+
+    unawaited(_crossfadePlayer.play());
+
+    final totalMs = _crossfadeDuration.inMilliseconds;
+    final stepMs = _crossfadeStepInterval.inMilliseconds;
+    var elapsedMs = 0;
+
+    final completer = Completer<void>();
+    _crossfadeTimer = Timer.periodic(_crossfadeStepInterval, (timer) async {
+      elapsedMs += stepMs;
+      final t = (elapsedMs / totalMs).clamp(0.0, 1.0);
+
+      try {
+        await Future.wait([
+          _player.setVolume(1.0 - t),
+          _crossfadePlayer.setVolume(t),
+        ]);
+      } catch (_) {
+        // players podem ter sido descartados/trocados no meio do fade
+      }
+
+      if (t >= 1.0) {
+        timer.cancel();
+        if (!completer.isCompleted) completer.complete();
+      }
+    });
+
+    await completer.future;
+
+    // Handoff: se ainda estamos numa transição válida (não foi cancelada
+    // no meio pelo usuário), troca o player principal pro próximo índice
+    // na posição em que o player de crossfade já está.
+    if (_crossfading) {
+      final handoffPosition = _crossfadePlayer.position;
+      try {
+        await _player.seek(handoffPosition, index: nextIndex);
+        await _player.setVolume(1.0);
+      } catch (e) {
+        debugPrint('ERRO NO HANDOFF DO CROSSFADE: $e');
+        await _player.setVolume(1.0); // nunca deixa o player principal mudo
+      }
+    }
+
+    await _crossfadePlayer.stop();
+    _crossfading = false;
+  }
+
+  /// Cancela um crossfade em andamento (ou uma preparação em progresso),
+  /// restaurando o volume do player principal. Chamado em qualquer ação
+  /// explícita do usuário que deveria interromper a transição suave
+  /// (pular, pausar, buscar posição, trocar de fila).
+  Future<void> _cancelCrossfade({required bool restoreVolume}) async {
+    if (!_crossfading && _crossfadeTimer == null) return;
+
+    _crossfading = false;
+    _crossfadeTimer?.cancel();
+    _crossfadeTimer = null;
+
+    try {
+      await _crossfadePlayer.stop();
+    } catch (_) {}
+
+    if (restoreVolume) {
+      try {
+        await _player.setVolume(1.0);
+      } catch (_) {}
+    }
+  }
+
+  // -----------------------------------------------------------------------
 
   Future<Uri?> _artworkFileUri(SongModel song) async {
     final cacheKey = song.albumId ?? song.id;
@@ -219,25 +371,22 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     List<MediaItem> items,
     int initialIndex,
   ) async {
-    // Prioriza a música atual primeiro (feedback visual mais rápido pro usuário)
     final order = [initialIndex, ...List.generate(songs.length, (i) => i)]
-        .toSet() // remove duplicata do initialIndex
+        .toSet()
         .toList();
 
     for (final i in order) {
       final song = songs[i];
       final cacheKey = song.albumId ?? song.id;
-      if (_artworkCache.containsKey(cacheKey)) continue; // já resolvido
+      if (_artworkCache.containsKey(cacheKey)) continue;
 
       final artUri = await _artworkFileUri(song);
       if (artUri == null) continue;
 
-      // Atualiza o MediaItem já existente na queue com a artwork nova
       final updated = items[i].copyWith(artUri: artUri);
       items[i] = updated;
       queue.add(List.of(items));
 
-      // Se for a música tocando agora, atualiza a notificação também
       if (mediaItem.value?.id == updated.id) {
         mediaItem.add(updated);
       }
@@ -248,25 +397,45 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> play() => _player.play();
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    // NOVO — pausar durante um crossfade cancela o fade de forma limpa
+    await _cancelCrossfade(restoreVolume: true);
+    await _player.pause();
+  }
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    // NOVO — busca manual de posição invalida qualquer fade em andamento
+    await _cancelCrossfade(restoreVolume: true);
+    await _player.seek(position);
+  }
 
   @override
   Future<void> skipToNext() async {
+    // NOVO — pulo manual cancela o fade (o handoff automático não se aplica)
+    await _cancelCrossfade(restoreVolume: true);
     if (_player.hasNext) await _player.seekToNext();
   }
 
   @override
   Future<void> skipToPrevious() async {
+    await _cancelCrossfade(restoreVolume: true);
     if (_player.hasPrevious) await _player.seekToPrevious();
   }
 
   @override
   Future<void> stop() async {
+    await _cancelCrossfade(restoreVolume: false);
     await _player.stop();
     await super.stop();
+  }
+
+  Future<void> dispose() async {
+    await _positionSub?.cancel();
+    await _crossfadePlayerStateSub?.cancel();
+    _crossfadeTimer?.cancel();
+    await _crossfadePlayer.dispose();
+    await _player.dispose();
   }
 
   void _broadcastState(PlaybackEvent event) {

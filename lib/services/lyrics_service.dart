@@ -12,19 +12,26 @@ import 'package:on_audio_query/on_audio_query.dart';
 ///
 /// Retorna null se nada for encontrado — a UI (`LyricsSheet`) já trata
 /// esse caso mostrando "Letra não disponível".
+///
+///
+
 class LyricsService {
   LyricsService._();
   static final LyricsService instance = LyricsService._();
 
   Future<String?> fetch(SongModel song) async {
     final path = song.data;
-
-    // content:// URIs (ex: fakeSongModelFromExternalUri) não dão acesso
-    // a File nem a arquivos irmãos — sem suporte a letra local aqui.
     if (path.startsWith('content://')) return null;
 
+    final ext = path.contains('.') ? path.split('.').last.toLowerCase() : '';
+
     try {
-      final embedded = await _Id3v2LyricsReader.readUslt(path);
+      String? embedded;
+      if (ext == 'mp3') {
+        embedded = await _Id3v2LyricsReader.readUslt(path);
+      } else if (ext == 'opus' || ext == 'ogg') {
+        embedded = await _OggCommentReader.readLyrics(path);
+      }
       if (embedded != null && embedded.trim().isNotEmpty) {
         return LyricsFormatter.format(embedded);
       }
@@ -217,4 +224,108 @@ class _Id3v2LyricsReader {
     }
     return String.fromCharCodes(units);
   }
+}
+
+class _OggCommentReader {
+  static const _maxBytes = 4 * 1024 * 1024; // não escaneia mais que isso
+
+  static Future<String?> readLyrics(String path) async {
+    RandomAccessFile? raf;
+    try {
+      raf = await File(path).open();
+      final packets = <List<int>>[];
+      var currentPacket = <int>[];
+      var totalRead = 0;
+
+      while (packets.length < 2 && totalRead < _maxBytes) {
+        final header = await raf.read(27);
+        if (header.length < 27 ||
+            header[0] != 0x4F ||
+            header[1] != 0x67 ||
+            header[2] != 0x67 ||
+            header[3] != 0x53) {
+          break; // não é (mais) uma página Ogg válida ("OggS")
+        }
+        final segmentCount = header[26];
+        final segmentTable = await raf.read(segmentCount);
+        if (segmentTable.length < segmentCount) break;
+
+        for (final segLen in segmentTable) {
+          final chunk = await raf.read(segLen);
+          totalRead += chunk.length;
+          currentPacket.addAll(chunk);
+          if (segLen < 255) {
+            packets.add(currentPacket);
+            currentPacket = <int>[];
+            if (packets.length >= 2) break;
+          }
+        }
+      }
+
+      if (packets.length < 2) return null;
+      return _parseCommentPacket(packets[1]);
+    } catch (e) {
+      debugPrint('Erro ao ler comentário Ogg/Opus de "$path": $e');
+      return null;
+    } finally {
+      try {
+        await raf?.close();
+      } catch (_) {}
+    }
+  }
+
+  static String? _parseCommentPacket(List<int> data) {
+    int offset;
+    if (data.length >= 8 && _asciiEquals(data, 0, 'OpusTags')) {
+      offset = 8;
+    } else if (data.length >= 7 &&
+        data[0] == 3 &&
+        _asciiEquals(data, 1, 'vorbis')) {
+      offset = 7;
+    } else {
+      return null;
+    }
+
+    if (offset + 4 > data.length) return null;
+    final vendorLen = _u32le(data, offset);
+    offset += 4 + vendorLen;
+    if (offset + 4 > data.length) return null;
+
+    final commentCount = _u32le(data, offset);
+    offset += 4;
+
+    for (var i = 0; i < commentCount && offset + 4 <= data.length; i++) {
+      final len = _u32le(data, offset);
+      offset += 4;
+      if (offset + len > data.length) break;
+      final entry =
+          utf8.decode(data.sublist(offset, offset + len), allowMalformed: true);
+      offset += len;
+
+      final eq = entry.indexOf('=');
+      if (eq <= 0) continue;
+      final key = entry.substring(0, eq).toUpperCase();
+      if (key == 'LYRICS' ||
+          key == 'UNSYNCEDLYRICS' ||
+          key == 'UNSYNCED LYRICS') {
+        final value = entry.substring(eq + 1);
+        if (value.trim().isNotEmpty) return value;
+      }
+    }
+    return null;
+  }
+
+  static bool _asciiEquals(List<int> data, int start, String s) {
+    if (start + s.length > data.length) return false;
+    for (var i = 0; i < s.length; i++) {
+      if (data[start + i] != s.codeUnitAt(i)) return false;
+    }
+    return true;
+  }
+
+  static int _u32le(List<int> b, int offset) =>
+      b[offset] |
+      (b[offset + 1] << 8) |
+      (b[offset + 2] << 16) |
+      (b[offset + 3] << 24);
 }

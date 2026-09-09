@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:glopplayer/main.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
 import 'package:glopplayer/screens/pages/favorites_screen.dart';
 import 'package:glopplayer/services/song_delete_service.dart';
 import 'package:glopplayer/services/recently_played_service.dart';
-import 'package:glopplayer/widgets/songs_list.dart';
+import 'package:glopplayer/widgets/music_list_items.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -40,9 +39,9 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _checkStatusOnly();
-    _initPermissionFlow();
-    _requestNotificationPermission();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initPermissionFlow();
+    });
   }
 
   @override
@@ -72,6 +71,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _initPermissionFlow() async {
     try {
+      // Android does not show two permission dialogs at the same time. Wait
+      // for notifications before requesting access to the audio library.
+      await _requestNotificationPermission();
+
       final granted = await _library.hasPermission;
       if (!mounted) return;
 

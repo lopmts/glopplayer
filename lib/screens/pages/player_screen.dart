@@ -501,7 +501,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     // Preview da letra, estilo "pill" fixo embaixo
                     LyricsPreviewBar(
                       song: song,
-                      lyricsFetcher: widget.lyricsFetcher,
+                      lyricsFetcher: LyricsService.instance.fetch,
                       onTap: () => _showLyricsSheet(context, song),
                     ),
                   ],

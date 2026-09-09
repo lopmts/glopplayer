@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:glopplayer/services/crossfade_settings_service.dart';
 import 'package:glopplayer/services/music_library_service.dart';
 import 'package:glopplayer/services/playback_persistence_service.dart';
 import 'package:glopplayer/services/recently_played_service.dart';
@@ -15,6 +16,8 @@ class PlayerController extends ChangeNotifier {
   final MusicLibraryService _library; // NOVO — injetado
   final RecentlyPlayedService _recentlyPlayed; // NOVO — histórico de reprodução
   final PlaybackPersistenceService _persistence = PlaybackPersistenceService();
+  final CrossfadeSettingsService
+      _crossfadeSettings; // NOVO — settings de crossfade
   Future<void>? _pendingAlbumAppend;
 
   List<SongModel> _playlist = [];
@@ -45,6 +48,9 @@ class PlayerController extends ChangeNotifier {
   bool get hasPlaylist => _playlist.isNotEmpty;
   List<SongModel> get songs => _playlist;
 
+  // NOVO — expõe as preferências de crossfade pra tela de configurações
+  CrossfadeSettingsService get crossfadeSettings => _crossfadeSettings;
+
   bool isCurrentSong(SongModel song) =>
       currentSong != null && currentSong!.id == song.id;
 
@@ -70,8 +76,10 @@ class PlayerController extends ChangeNotifier {
     this._handler, {
     MusicLibraryService? library,
     RecentlyPlayedService? recentlyPlayed,
+    CrossfadeSettingsService? crossfadeSettings, // NOVO
   })  : _library = library ?? MusicLibraryService(),
-        _recentlyPlayed = recentlyPlayed ?? RecentlyPlayedService() {
+        _recentlyPlayed = recentlyPlayed ?? RecentlyPlayedService(),
+        _crossfadeSettings = crossfadeSettings ?? CrossfadeSettingsService() {
     _handler.player.currentIndexStream.listen((index) {
       if (_suppressIndexStream) return;
       if (index != null &&
@@ -100,6 +108,25 @@ class PlayerController extends ChangeNotifier {
         _handleUnexpectedCompletion(); // NOVO — fallback de segurança
       }
     });
+
+    unawaited(_initCrossfadeSettings()); // NOVO
+  }
+
+  // NOVO — carrega preferência salva e aplica no handler; reaplica sempre
+  // que a UI de configurações mudar algo (toggle ou slider)
+  Future<void> _initCrossfadeSettings() async {
+    if (!_crossfadeSettings.isLoaded) {
+      await _crossfadeSettings.load();
+    }
+    _applyCrossfadeSettings();
+    _crossfadeSettings.addListener(_applyCrossfadeSettings);
+  }
+
+  void _applyCrossfadeSettings() {
+    _handler.updateCrossfadeSettings(
+      enabled: _crossfadeSettings.enabled,
+      duration: _crossfadeSettings.duration,
+    );
   }
 
   // NOVO — registra a faixa atual no histórico de "tocadas recentemente"
@@ -306,6 +333,7 @@ class PlayerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _crossfadeSettings.removeListener(_applyCrossfadeSettings); // NOVO
     _saveDebounce?.cancel();
     _playlistCompletedController.close();
     super.dispose();

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:glopplayer/screens/pages/album_songs_screen.dart';
+import 'package:glopplayer/screens/pages/merged_artist_albums_screen.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+
+import '../../models/album_group.dart';
 import '../services/music_library_service.dart';
 import '../widgets/artwork_thumbnail.dart';
 
@@ -52,15 +55,19 @@ class AlbumsScreen extends StatefulWidget {
 }
 
 class _AlbumsScreenState extends State<AlbumsScreen> {
+  static const int _mergeThreshold = 5;
+
   final MusicLibraryService _library = MusicLibraryService();
   final TextEditingController _searchController = TextEditingController();
 
   List<AlbumModel> _albums = [];
-  List<AlbumModel> _filteredAlbums = [];
+  List<AlbumGroup> _allGroups = [];
+  List<AlbumGroup> _filteredGroups = [];
   bool _isLoading = true;
   String? _errorMessage;
   String _query = '';
   _SongSort _sortBy = _SongSort.track;
+  bool _mergeSmallAlbums = false;
 
   @override
   void initState() {
@@ -98,9 +105,9 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
       final albums = await _library.fetchAllAlbums();
       setState(() {
         _albums = albums;
-        _filteredAlbums = albums;
         _isLoading = false;
       });
+      _rebuildGroups();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -109,50 +116,65 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
     }
   }
 
-  /// Filtra álbuns por nome do álbum OU nome do artista.
-  /// Quando o usuário digita algo que bate com o início do nome de um
-  /// artista, esses álbuns aparecem primeiro (busca "de um artista
-  /// específico" tem prioridade sobre correspondência parcial no título).
+  void _rebuildGroups() {
+    final groups = _mergeSmallAlbums
+        ? groupAlbumsByArtist(_albums, threshold: _mergeThreshold)
+        : _albums.map(AlbumGroup.single).toList();
+
+    _sortGroups(groups);
+
+    setState(() {
+      _allGroups = groups;
+    });
+    _onSearchChanged(_searchController.text); // reaplica busca ativa, se houver
+  }
+
+  void _toggleMergeSmallAlbums() {
+    setState(() => _mergeSmallAlbums = !_mergeSmallAlbums);
+    _rebuildGroups();
+  }
+
+  /// Filtra grupos por nome do artista OU título exibido (álbum, se
+  /// individual). Grupos cujo artista bate com o início da busca aparecem
+  /// primeiro.
   void _onSearchChanged(String value) {
     final query = value.trim().toLowerCase();
     setState(() {
       _query = query;
 
       if (query.isEmpty) {
-        _filteredAlbums = _albums;
+        _filteredGroups = List.of(_allGroups);
         return;
       }
 
-      _filteredAlbums = _albums.where((album) {
-        final albumName = album.album.toLowerCase();
-        final artistName = (album.artist ?? '').toLowerCase();
-        return artistName.contains(query) || albumName.contains(query);
+      _filteredGroups = _allGroups.where((group) {
+        final artistName = group.artist.toLowerCase();
+        final titleMatch = group.displayTitle.toLowerCase().contains(query);
+        return artistName.contains(query) || titleMatch;
       }).toList();
 
-      _filteredAlbums.sort((a, b) {
-        final aArtist = (a.artist ?? '').toLowerCase();
-        final bArtist = (b.artist ?? '').toLowerCase();
-        final aStarts = aArtist.startsWith(query) ? 0 : 1;
-        final bStarts = bArtist.startsWith(query) ? 0 : 1;
+      _filteredGroups.sort((a, b) {
+        final aStarts = a.artist.toLowerCase().startsWith(query) ? 0 : 1;
+        final bStarts = b.artist.toLowerCase().startsWith(query) ? 0 : 1;
         if (aStarts != bStarts) return aStarts - bStarts;
-        return a.album.toLowerCase().compareTo(b.album.toLowerCase());
+        return a.displayTitle
+            .toLowerCase()
+            .compareTo(b.displayTitle.toLowerCase());
       });
     });
   }
 
-  void _sortAlbums(List<AlbumModel> albums) {
+  void _sortGroups(List<AlbumGroup> groups) {
     switch (_sortBy) {
       case _SongSort.title:
-        albums.sort((a, b) => a.album.compareTo(b.album));
+        groups.sort((a, b) => a.displayTitle.compareTo(b.displayTitle));
         break;
       case _SongSort.artist:
-        albums.sort((a, b) => (a.artist ?? '').compareTo(b.artist ?? ''));
+        groups.sort((a, b) => a.artist.compareTo(b.artist));
         break;
       case _SongSort.dateAddedNewest:
       case _SongSort.dateAddedOldest:
-        // Remova a ordenação por data ou implemente de outra forma
-        // Por exemplo, ordenar por número de músicas como fallback
-        albums.sort((a, b) => a.numOfSongs.compareTo(b.numOfSongs));
+        groups.sort((a, b) => a.totalSongs.compareTo(b.totalSongs));
         break;
       case _SongSort.track:
         break;
@@ -162,8 +184,8 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
   void _changeSort(_SongSort sort) {
     setState(() {
       _sortBy = sort;
-      _sortAlbums(_filteredAlbums);
-      _sortAlbums(_albums);
+      _sortGroups(_filteredGroups);
+      _sortGroups(_allGroups);
     });
   }
 
@@ -203,16 +225,29 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
     }
   }
 
-  void _openAlbum(AlbumModel album) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AlbumSongsScreen(album: album, library: _library),
-      ),
-    );
+  void _openGroup(AlbumGroup group) {
+    if (group.isMerged) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              MergedArtistAlbumsScreen(group: group, library: _library),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AlbumSongsScreen(
+            album: group.albums.first,
+            library: _library,
+          ),
+        ),
+      );
+    }
   }
 
-  Widget _buildAlbumGrid(List<AlbumModel> albums) {
+  Widget _buildAlbumGrid(List<AlbumGroup> groups) {
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       shrinkWrap: true,
@@ -223,35 +258,57 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
         crossAxisSpacing: 12,
         childAspectRatio: 0.8,
       ),
-      itemCount: albums.length,
+      itemCount: groups.length,
       itemBuilder: (context, index) {
-        final album = albums[index];
+        final group = groups[index];
         return InkWell(
+          key: ValueKey(group.groupKey),
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _openAlbum(album),
+          onTap: () => _openGroup(group),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: ArtworkThumbnail(
-                    id: album.id,
-                    type: ArtworkType.ALBUM,
-                    borderRadius: 12,
-                    placeholderIcon: Icons.album,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ArtworkThumbnail(
+                          id: group.artworkId,
+                          type: group.artworkType,
+                          borderRadius: group.isMerged ? 100 : 12,
+                          placeholderIcon:
+                              group.isMerged ? Icons.person : Icons.album,
+                        ),
+                      ),
+                      if (group.isMerged)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(Icons.groups,
+                                size: 14, color: Colors.white),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
               const SizedBox(height: 6),
               Text(
-                album.album,
+                group.displayTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               Text(
-                album.artist ?? 'Artista desconhecido',
+                group.displaySubtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context)
@@ -302,6 +359,18 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
         title: const Text('Álbuns'),
         actions: [
           IconButton(
+            icon: Icon(
+              Icons.groups,
+              color: _mergeSmallAlbums
+                  ? Colors.amber
+                  : Theme.of(context).appBarTheme.foregroundColor,
+            ),
+            tooltip: _mergeSmallAlbums
+                ? 'Desfazer mesclagem por artista'
+                : 'Mesclar álbuns pequenos por artista',
+            onPressed: _toggleMergeSmallAlbums,
+          ),
+          IconButton(
             icon: const Icon(Icons.sort),
             tooltip: 'Ordenar',
             onPressed: _openSortMenu,
@@ -337,19 +406,29 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
                       ),
                     ),
                   ),
-
-                  // Resultados da busca (quando houver uma consulta ativa)
+                  if (_mergeSmallAlbums)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                      child: Text(
+                        'Álbuns com até $_mergeThreshold músicas do mesmo artista '
+                        'foram agrupados',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey,
+                              fontStyle: FontStyle.italic,
+                            ),
+                      ),
+                    ),
                   if (isSearching) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                       child: Text(
-                        _filteredAlbums.isEmpty
+                        _filteredGroups.isEmpty
                             ? 'Nenhum álbum encontrado para "$_query"'
-                            : 'Resultados para "$_query" (${_filteredAlbums.length})',
+                            : 'Resultados para "$_query" (${_filteredGroups.length})',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                     ),
-                    _buildAlbumGrid(_filteredAlbums),
+                    _buildAlbumGrid(_filteredGroups),
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16),
                       child: Divider(height: 24),
@@ -362,9 +441,7 @@ class _AlbumsScreenState extends State<AlbumsScreen> {
                       ),
                     ),
                   ],
-
-                  // Lista padrão (todos os álbuns), sempre visível abaixo
-                  _buildAlbumGrid(_albums),
+                  _buildAlbumGrid(_allGroups),
                 ],
               ),
             ),

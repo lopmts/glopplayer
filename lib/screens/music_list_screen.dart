@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:glopplayer/widgets/music_list_items.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
-import 'package:glopplayer/widgets/songs_list.dart';
 import '../services/music_library_service.dart';
 import '../controllers/player_controller.dart';
 

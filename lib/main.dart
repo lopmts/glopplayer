@@ -151,6 +151,7 @@ class _MyAppState extends State<MyApp> {
                   const ThemeSettingsScreen(),
               '/pages/local_library_screen': (context) =>
                   const LocalLibraryScreen(),
+              '/pages/player': (context) => const PlayerScreen(),
               '/pages/cache_management_screen': (context) =>
                   const CacheManagementScreen(),
               '/pages/logs_screen': (context) => const LogsScreen(),

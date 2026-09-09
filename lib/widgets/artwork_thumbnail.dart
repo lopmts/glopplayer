@@ -1,8 +1,10 @@
 import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+
 import '../services/artwork_cache_service.dart';
 
 class ArtworkThumbnail extends StatefulWidget {
@@ -38,7 +40,7 @@ class ArtworkThumbnail extends StatefulWidget {
   static Future<Uint8List?> fetchBytes(
     int id,
     ArtworkType type, {
-    int quality = 85,
+    int quality = 95,
     int size = 400,
   }) {
     final key = _keyFor(id, type);
