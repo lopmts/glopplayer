@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:glopplayer/controllers/player_controller.dart';
-import 'package:glopplayer/services/crossfade_settings_service.dart';
 import 'package:glopplayer/services/update_service.dart';
 import 'package:glopplayer/widgets/update_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -110,6 +107,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: 20),
+            _SettingsGroup(
+              children: [
+                _SettingsTile(
+                  icon: Icons.tune_outlined,
+                  title: 'Configurações adicionais',
+                  subtitle: 'Player nos álbuns e transição entre músicas',
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/pages/additional_settings_screen',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
 
             // Grupo: Armazenamento
             _SettingsGroup(
@@ -161,83 +172,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            Consumer<PlayerController>(
-              builder: (context, playerController, _) {
-                return AnimatedBuilder(
-                  animation: playerController.crossfadeSettings,
-                  builder: (context, _) {
-                    final settings = playerController.crossfadeSettings;
-                    final cs = theme.colorScheme;
-
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        children: [
-                          SwitchListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 4),
-                            title: Text(
-                              'Transição suave entre músicas',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: cs.onSurface,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'Crossfade ao se aproximar do fim da faixa',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                            value: settings.enabled,
-                            onChanged: (value) => settings.setEnabled(value),
-                          ),
-                          if (settings.enabled) ...[
-                            Divider(
-                              height: 1,
-                              thickness: 1,
-                              indent: 16,
-                              endIndent: 16,
-                              color: cs.outlineVariant.withOpacity(0.3),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Duração: ${settings.durationSeconds}s',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  Slider(
-                                    value: settings.durationSeconds.toDouble(),
-                                    min: CrossfadeSettingsService.minSeconds
-                                        .toDouble(),
-                                    max: CrossfadeSettingsService.maxSeconds
-                                        .toDouble(),
-                                    divisions:
-                                        CrossfadeSettingsService.maxSeconds -
-                                            CrossfadeSettingsService.minSeconds,
-                                    label: '${settings.durationSeconds}s',
-                                    onChanged: (value) => settings
-                                        .setDurationSeconds(value.round()),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
           ],
         ),
       ),

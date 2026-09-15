@@ -14,6 +14,8 @@ import 'package:glopplayer/provider/theme_provider.dart';
 import 'package:glopplayer/screens/pages/cache_management_screen.dart';
 import 'package:glopplayer/screens/pages/local_library_screen.dart';
 import 'package:glopplayer/screens/pages/theme_settings_screen.dart';
+import 'package:glopplayer/screens/pages/additional_settings_screen.dart';
+import 'package:glopplayer/services/additional_settings_service.dart';
 import 'package:glopplayer/theme/dynamic_color_wrapper.dart';
 import 'package:provider/provider.dart';
 import 'package:glopplayer/widgets/tabs_navegation.dart';
@@ -135,6 +137,9 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LibraryController()),
         ChangeNotifierProvider(create: (_) => FavoritesController()),
+        ChangeNotifierProvider(
+          create: (_) => AdditionalSettingsService()..load(),
+        ),
       ],
       child: DynamicColorWrapper(
         builder: (context, lightTheme, darkTheme, mode) {
@@ -149,6 +154,8 @@ class _MyAppState extends State<MyApp> {
             routes: {
               '/pages/theme_settings_screen': (context) =>
                   const ThemeSettingsScreen(),
+              '/pages/additional_settings_screen': (context) =>
+                  const AdditionalSettingsScreen(),
               '/pages/local_library_screen': (context) =>
                   const LocalLibraryScreen(),
               '/pages/player': (context) => const PlayerScreen(),

@@ -7,6 +7,8 @@ import 'package:glopplayer/services/music_library_service.dart';
 import 'package:glopplayer/controllers/player_controller.dart';
 import 'package:glopplayer/utils/format_utils.dart';
 import 'package:glopplayer/widgets/artwork_thumbnail.dart';
+import 'package:glopplayer/widgets/mini_player_bar.dart';
+import 'package:glopplayer/services/additional_settings_service.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
@@ -186,6 +188,22 @@ class _AlbumSongsScreenState extends State<AlbumSongsScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.playlist_play),
+              title: const Text('Tocar em seguida'),
+              onTap: () async {
+                Navigator.pop(context);
+                final controller = context.read<PlayerController>();
+                await controller.addNextInQueue(song);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${song.title} será tocada em seguida'),
+                    ),
+                  );
+                }
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.playlist_add),
               title: const Text('Adicionar à playlist'),
               onTap: () {
@@ -303,6 +321,10 @@ class _AlbumSongsScreenState extends State<AlbumSongsScreen> {
           ),
         ],
       ),
+      bottomNavigationBar:
+          context.watch<AdditionalSettingsService>().showPlayerOnAlbums
+              ? const MiniPlayerBar()
+              : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(

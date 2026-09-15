@@ -41,6 +41,8 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
+  double? _dismissDragStartY;
+  double _dismissDragDistance = 0;
   // --- Loop A-B
   Duration? _pointA;
   Duration? _pointB;
@@ -167,349 +169,374 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text(
-          'TOCANDO AGORA',
-          style: TextStyle(
-            fontSize: 11,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w600,
-            color: Colors.white70,
+    return GestureDetector(
+      onVerticalDragStart: (details) {
+        if (details.globalPosition.dy <= 140) {
+          _dismissDragStartY = details.globalPosition.dy;
+          _dismissDragDistance = 0;
+        } else {
+          _dismissDragStartY = null;
+        }
+      },
+      onVerticalDragUpdate: (details) {
+        if (_dismissDragStartY != null && details.primaryDelta != null) {
+          _dismissDragDistance += details.primaryDelta!;
+        }
+      },
+      onVerticalDragEnd: (details) {
+        final shouldDismiss = _dismissDragStartY != null &&
+            (_dismissDragDistance > 56 || (details.primaryVelocity ?? 0) > 700);
+        _dismissDragStartY = null;
+        _dismissDragDistance = 0;
+        if (shouldDismiss && mounted) {
+          Navigator.of(context).maybePop();
+        }
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down),
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        centerTitle: true,
-        actions: [
-          // NOVO — botão de favoritar. Consumer isolado pra só esse ícone
-          // reconstruir quando o estado de favoritos mudar, sem rebuildar
-          // a tela inteira.
-          Consumer<FavoritesController?>(
-            builder: (context, favorites, _) {
-              final isFavorite = favorites?.isFavorite(song.id) ?? false;
-              return IconButton(
-                icon: Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: isFavorite ? Colors.redAccent : Colors.white,
-                ),
-                tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
-                onPressed:
-                    favorites == null ? null : () => _toggleFavorite(song),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.lyrics_outlined),
-            tooltip: 'Letra',
-            onPressed: () => _showLyricsSheet(context, song),
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            tooltip: 'Mais opções',
-            onPressed: () => _showOptionsSheet(context, song),
-          ),
-        ],
-      ),
-      body: FutureBuilder<Uint8List?>(
-        future: ArtworkThumbnail.fetchBytes(song.id, ArtworkType.AUDIO),
-        builder: (context, snapshot) {
-          final artworkData = snapshot.data;
-
-          if (snapshot.connectionState == ConnectionState.done) {
-            // Agenda a extração de paleta pro próximo frame, pra não
-            // chamar setState durante o build.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _updatePalette(song.id, artworkData);
-            });
-          }
-
-          final bg = _bgColor ?? scheme.primary;
-          final accent = _accentColor ?? scheme.secondary;
-
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOut,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0.0, 0.55, 1.0],
-                colors: [
-                  Color.lerp(bg, Colors.black, 0.10)!,
-                  Color.lerp(bg, Colors.black, 0.70)!,
-                  Colors.black,
-                ],
-              ),
+          title: const Text(
+            'TOCANDO AGORA',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
             ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                child: Column(
-                  children: [
-                    const Spacer(flex: 2),
+          ),
+          centerTitle: true,
+          actions: [
+            // NOVO — botão de favoritar. Consumer isolado pra só esse ícone
+            // reconstruir quando o estado de favoritos mudar, sem rebuildar
+            // a tela inteira.
+            Consumer<FavoritesController?>(
+              builder: (context, favorites, _) {
+                final isFavorite = favorites?.isFavorite(song.id) ?? false;
+                return IconButton(
+                  icon: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: isFavorite ? Colors.redAccent : Colors.white,
+                  ),
+                  tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
+                  onPressed:
+                      favorites == null ? null : () => _toggleFavorite(song),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.lyrics_outlined),
+              tooltip: 'Letra',
+              onPressed: () => _showLyricsSheet(context, song),
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'Mais opções',
+              onPressed: () => _showOptionsSheet(context, song),
+            ),
+          ],
+        ),
+        body: FutureBuilder<Uint8List?>(
+          future: ArtworkThumbnail.fetchBytes(song.id, ArtworkType.AUDIO),
+          builder: (context, snapshot) {
+            final artworkData = snapshot.data;
 
-                    // Capa do álbum
-                    Hero(
-                      tag: 'artwork-${song.id}',
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: ArtworkThumbnail(
-                            id: song.id,
-                            type: ArtworkType.AUDIO,
-                            borderRadius: 8,
-                          ),
-                        ),
-                      ),
-                    ),
+            if (snapshot.connectionState == ConnectionState.done) {
+              // Agenda a extração de paleta pro próximo frame, pra não
+              // chamar setState durante o build.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _updatePalette(song.id, artworkData);
+              });
+            }
 
-                    const SizedBox(height: 28),
+            final bg = _bgColor ?? scheme.primary;
+            final accent = _accentColor ?? scheme.secondary;
 
-                    // Título + artista
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                song.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                song.artist ?? 'Artista desconhecido',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Barra de progresso
-                    StreamBuilder<Duration>(
-                      stream: controller.player.positionStream,
-                      builder: (context, snapshot) {
-                        final position = snapshot.data ?? Duration.zero;
-                        final duration =
-                            controller.player.duration ?? Duration.zero;
-                        final maxMillis = duration.inMilliseconds > 0
-                            ? duration.inMilliseconds.toDouble()
-                            : 1.0;
-                        final value = position.inMilliseconds
-                            .clamp(0, maxMillis.toInt())
-                            .toDouble();
-
-                        return Column(
-                          children: [
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                trackHeight: 3,
-                                activeTrackColor: Colors.white,
-                                thumbColor: Colors.white,
-                                inactiveTrackColor: Colors.white24,
-                                overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 5,
-                                ),
-                              ),
-                              child: Slider(
-                                value: value,
-                                max: maxMillis,
-                                onChanged: (v) => controller
-                                    .seek(Duration(milliseconds: v.toInt())),
-                              ),
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _formatDuration(position),
-                                    style: const TextStyle(
-                                        color: Colors.white60, fontSize: 12),
-                                  ),
-                                  Text(
-                                    _formatDuration(duration),
-                                    style: const TextStyle(
-                                        color: Colors.white60, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // Controles principais
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        StreamBuilder<bool>(
-                          stream: controller.player.shuffleModeEnabledStream,
-                          builder: (context, snapshot) {
-                            final enabled = snapshot.data ?? false;
-                            return IconButton(
-                              iconSize: 22,
-                              tooltip: 'Aleatório',
-                              icon: Icon(Icons.shuffle,
-                                  color: enabled ? accent : Colors.white70),
-                              onPressed: () => controller.player
-                                  .setShuffleModeEnabled(!enabled),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          iconSize: 34,
-                          icon: const Icon(Icons.skip_previous,
-                              color: Colors.white),
-                          onPressed: controller.previous,
-                        ),
-                        StreamBuilder<PlayerState>(
-                          stream: controller.player.playerStateStream,
-                          builder: (context, snapshot) {
-                            final playing = snapshot.data?.playing ?? false;
-                            final processingState =
-                                snapshot.data?.processingState;
-
-                            if (processingState == ProcessingState.loading ||
-                                processingState == ProcessingState.buffering) {
-                              return const SizedBox(
-                                width: 56,
-                                height: 56,
-                                child: Padding(
-                                  padding: EdgeInsets.all(14.0),
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              );
-                            }
-
-                            return Container(
-                              width: 56,
-                              height: 56,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                              ),
-                              child: IconButton(
-                                iconSize: 32,
-                                icon: Icon(
-                                  playing
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  color: Colors.black,
-                                ),
-                                onPressed: controller.playPause,
-                              ),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          iconSize: 34,
-                          icon:
-                              const Icon(Icons.skip_next, color: Colors.white),
-                          onPressed: controller.next,
-                        ),
-                        StreamBuilder<LoopMode>(
-                          stream: controller.player.loopModeStream,
-                          builder: (context, snapshot) {
-                            final mode = snapshot.data ?? LoopMode.off;
-                            final icon = mode == LoopMode.one
-                                ? Icons.repeat_one
-                                : Icons.repeat;
-                            final active = mode != LoopMode.off;
-                            return IconButton(
-                              iconSize: 22,
-                              tooltip: 'Repetir',
-                              icon: Icon(icon,
-                                  color: active ? accent : Colors.white70),
-                              onPressed: () {
-                                final next = switch (mode) {
-                                  LoopMode.off => LoopMode.all,
-                                  LoopMode.all => LoopMode.one,
-                                  LoopMode.one => LoopMode.off,
-                                };
-                                controller.player.setLoopMode(next);
-                              },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Controles secundários: velocidade e loop A-B
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SpeedButton(controller: controller),
-                        const SizedBox(width: 16),
-                        PillButton(
-                          label: _abLabel,
-                          active: _pointA != null,
-                          icon: Icons.repeat_on_outlined,
-                          onTap: () => _handleAbTap(controller),
-                          onLongPress: _pointA == null
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _abSub?.cancel();
-                                    _abSub = null;
-                                    _pointA = null;
-                                    _pointB = null;
-                                  });
-                                },
-                        ),
-                      ],
-                    ),
-
-                    const Spacer(flex: 3),
-
-                    // Preview da letra, estilo "pill" fixo embaixo
-                    LyricsPreviewBar(
-                      song: song,
-                      lyricsFetcher: LyricsService.instance.fetch,
-                      onTap: () => _showLyricsSheet(context, song),
-                    ),
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOut,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.55, 1.0],
+                  colors: [
+                    Color.lerp(bg, Colors.black, 0.10)!,
+                    Color.lerp(bg, Colors.black, 0.70)!,
+                    Colors.black,
                   ],
                 ),
               ),
-            ),
-          );
-        },
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 2),
+
+                      // Capa do álbum
+                      Hero(
+                        tag: 'artwork-${song.id}',
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ArtworkThumbnail(
+                              id: song.id,
+                              type: ArtworkType.AUDIO,
+                              borderRadius: 8,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      // Título + artista
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  song.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  song.artist ?? 'Artista desconhecido',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Barra de progresso
+                      StreamBuilder<Duration>(
+                        stream: controller.player.positionStream,
+                        builder: (context, snapshot) {
+                          final position = snapshot.data ?? Duration.zero;
+                          final duration =
+                              controller.player.duration ?? Duration.zero;
+                          final maxMillis = duration.inMilliseconds > 0
+                              ? duration.inMilliseconds.toDouble()
+                              : 1.0;
+                          final value = position.inMilliseconds
+                              .clamp(0, maxMillis.toInt())
+                              .toDouble();
+
+                          return Column(
+                            children: [
+                              SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  trackHeight: 3,
+                                  activeTrackColor: Colors.white,
+                                  thumbColor: Colors.white,
+                                  inactiveTrackColor: Colors.white24,
+                                  overlayShape: SliderComponentShape.noOverlay,
+                                  thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 5,
+                                  ),
+                                ),
+                                child: Slider(
+                                  value: value,
+                                  max: maxMillis,
+                                  onChanged: (v) => controller
+                                      .seek(Duration(milliseconds: v.toInt())),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _formatDuration(position),
+                                      style: const TextStyle(
+                                          color: Colors.white60, fontSize: 12),
+                                    ),
+                                    Text(
+                                      _formatDuration(duration),
+                                      style: const TextStyle(
+                                          color: Colors.white60, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      // Controles principais
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          StreamBuilder<bool>(
+                            stream: controller.player.shuffleModeEnabledStream,
+                            builder: (context, snapshot) {
+                              final enabled = snapshot.data ?? false;
+                              return IconButton(
+                                iconSize: 22,
+                                tooltip: 'Aleatório',
+                                icon: Icon(Icons.shuffle,
+                                    color: enabled ? accent : Colors.white70),
+                                onPressed: () => controller.player
+                                    .setShuffleModeEnabled(!enabled),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            iconSize: 34,
+                            icon: const Icon(Icons.skip_previous,
+                                color: Colors.white),
+                            onPressed: controller.previous,
+                          ),
+                          StreamBuilder<PlayerState>(
+                            stream: controller.player.playerStateStream,
+                            builder: (context, snapshot) {
+                              final playing = snapshot.data?.playing ?? false;
+                              final processingState =
+                                  snapshot.data?.processingState;
+
+                              if (processingState == ProcessingState.loading ||
+                                  processingState ==
+                                      ProcessingState.buffering) {
+                                return const SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(14.0),
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              return Container(
+                                width: 56,
+                                height: 56,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                ),
+                                child: IconButton(
+                                  iconSize: 32,
+                                  icon: Icon(
+                                    playing
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    color: Colors.black,
+                                  ),
+                                  onPressed: controller.playPause,
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            iconSize: 34,
+                            icon: const Icon(Icons.skip_next,
+                                color: Colors.white),
+                            onPressed: controller.next,
+                          ),
+                          StreamBuilder<LoopMode>(
+                            stream: controller.player.loopModeStream,
+                            builder: (context, snapshot) {
+                              final mode = snapshot.data ?? LoopMode.off;
+                              final icon = mode == LoopMode.one
+                                  ? Icons.repeat_one
+                                  : Icons.repeat;
+                              final active = mode != LoopMode.off;
+                              return IconButton(
+                                iconSize: 22,
+                                tooltip: 'Repetir',
+                                icon: Icon(icon,
+                                    color: active ? accent : Colors.white70),
+                                onPressed: () {
+                                  final next = switch (mode) {
+                                    LoopMode.off => LoopMode.all,
+                                    LoopMode.all => LoopMode.one,
+                                    LoopMode.one => LoopMode.off,
+                                  };
+                                  controller.player.setLoopMode(next);
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Controles secundários: velocidade e loop A-B
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SpeedButton(controller: controller),
+                          const SizedBox(width: 16),
+                          PillButton(
+                            label: _abLabel,
+                            active: _pointA != null,
+                            icon: Icons.repeat_on_outlined,
+                            onTap: () => _handleAbTap(controller),
+                            onLongPress: _pointA == null
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _abSub?.cancel();
+                                      _abSub = null;
+                                      _pointA = null;
+                                      _pointB = null;
+                                    });
+                                  },
+                          ),
+                        ],
+                      ),
+
+                      const Spacer(flex: 3),
+
+                      // Preview da letra, estilo "pill" fixo embaixo
+                      LyricsPreviewBar(
+                        song: song,
+                        lyricsFetcher: LyricsService.instance.fetch,
+                        onTap: () => _showLyricsSheet(context, song),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

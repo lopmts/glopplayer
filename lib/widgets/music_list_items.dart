@@ -346,6 +346,19 @@ class _MusicListScreenState extends State<MusicListItems> {
                               context,
                               song,
                               onPlayNow: () => _playSong(context, [song], 0),
+                              onPlayNext: () async {
+                                await context
+                                    .read<PlayerController>()
+                                    .addNextInQueue(song);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          '${song.title} será tocada em seguida'),
+                                    ),
+                                  );
+                                }
+                              },
                               onSelect: () => _enterSelectionWith(song),
                               onAddToPlaylist: () => showDialog(
                                 context: context,

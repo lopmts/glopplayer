@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -86,6 +88,12 @@ class LibraryController extends ChangeNotifier {
     _folders = await _db.getFolders();
     _isLoaded = true;
     notifyListeners();
+
+    // Atualiza a biblioteca em toda inicialização. O cache continua sendo
+    // usado para evitar trabalho desnecessário durante o processamento.
+    if (_enabled) {
+      unawaited(scanLibrary());
+    }
   }
 
   Future<void> setEnabled(bool value) async {

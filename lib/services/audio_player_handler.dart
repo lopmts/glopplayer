@@ -161,6 +161,37 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _resolveArtworkForRange(songs, updatedQueue, offset);
   }
 
+  Future<void> insertSongsNext(List<SongModel> songs) async {
+    if (_currentSource == null || songs.isEmpty) return;
+
+    final items = <MediaItem>[];
+    final sources = <AudioSource>[];
+    for (final song in songs) {
+      final cacheKey = song.albumId ?? song.id;
+      final item = MediaItem(
+        id: _resolveSongUri(song),
+        title: song.title,
+        artist: song.artist ?? 'Artista desconhecido',
+        album: song.album ?? 'Álbum desconhecido',
+        duration: song.duration != null
+            ? Duration(milliseconds: song.duration!)
+            : null,
+        artUri: _artworkCache[cacheKey],
+      );
+      items.add(item);
+      sources.add(AudioSource.uri(Uri.parse(item.id), tag: item));
+    }
+
+    final currentIndex = _player.currentIndex ?? 0;
+    final insertIndex = currentIndex + 1;
+    await _currentSource!.insertAll(insertIndex, sources);
+
+    final updatedQueue = List<MediaItem>.of(queue.value)
+      ..insertAll(insertIndex, items);
+    queue.add(updatedQueue);
+    _resolveArtworkForRange(songs, updatedQueue, insertIndex);
+  }
+
   Future<void> _resolveArtworkForRange(
     List<SongModel> songs,
     List<MediaItem> fullQueueItems,

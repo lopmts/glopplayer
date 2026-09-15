@@ -3,8 +3,8 @@ import 'package:glopplayer/widgets/artwork_thumbnail.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../screens/pages/player_screen.dart';
 import '../controllers/player_controller.dart';
+import '../screens/pages/player_screen.dart';
 
 /// Barra fixa mostrando a música atual, com progresso e controles rápidos.
 /// Deve ficar no "shell" persistente do app (ex: MainTabScreen), acima da
@@ -30,68 +30,77 @@ class MiniPlayerBar extends StatelessWidget {
       ),
       child: Material(
         color: cs.surfaceContainerHigh,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _MiniProgressBar(controller: controller),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: ArtworkThumbnail(
-                      id: song.id,
-                      type: ArtworkType.AUDIO,
-                      borderRadius: 8,
+        child: SafeArea(
+          // Só a área de baixo importa aqui: a barra fica no rodapé da
+          // tela, então precisamos respeitar o inset do gesto do sistema
+          // (Android edge-to-edge) para os botões não ficarem colados/
+          // sobrepostos por ele. "top: false" evita padding indevido em
+          // cima, já que essa barra nunca encosta no topo.
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _MiniProgressBar(controller: controller),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: ArtworkThumbnail(
+                        id: song.id,
+                        type: ArtworkType.AUDIO,
+                        borderRadius: 8,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: cs.onSurface,
-                            fontWeight: FontWeight.w600,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        Text(
-                          song.artist ?? 'Artista desconhecido',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: cs.onSurfaceVariant),
-                        ),
-                      ],
+                          Text(
+                            song.artist ?? 'Artista desconhecido',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      controller.isPlaying
-                          ? Icons.pause_circle_filled
-                          : Icons.play_circle_filled,
-                      color: cs.primary,
+                    IconButton(
+                      icon: Icon(
+                        controller.isPlaying
+                            ? Icons.pause_circle_filled
+                            : Icons.play_circle_filled,
+                        color: cs.primary,
+                      ),
+                      iconSize: 36,
+                      onPressed: controller.playPause,
+                      tooltip: controller.isPlaying ? 'Pausar' : 'Tocar',
                     ),
-                    iconSize: 36,
-                    onPressed: controller.playPause,
-                    tooltip: controller.isPlaying ? 'Pausar' : 'Tocar',
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.skip_next, color: cs.onSurface),
-                    onPressed: controller.next,
-                    tooltip: 'Próxima',
-                  ),
-                ],
+                    IconButton(
+                      icon: Icon(Icons.skip_next, color: cs.onSurface),
+                      onPressed: controller.next,
+                      tooltip: 'Próxima',
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

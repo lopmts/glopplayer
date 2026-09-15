@@ -235,6 +235,25 @@ class PlayerController extends ChangeNotifier {
     unawaited(_saveWidgetState());
   }
 
+  Future<void> addNextInQueue(SongModel song) async {
+    if (_playlist.isEmpty) {
+      await setPlaylist([song]);
+      return;
+    }
+
+    final insertIndex = _currentIndex + 1;
+    final updatedPlaylist = List<SongModel>.of(_playlist)
+      ..insert(insertIndex, song);
+    _playlist = updatedPlaylist;
+    if (_currentAlbum != null &&
+        insertIndex <= _currentAlbumStartIndex + _currentAlbumLength) {
+      _currentAlbumLength++;
+    }
+    notifyListeners();
+    await _handler.insertSongsNext([song]);
+    await _savePlaybackState();
+  }
+
   Future<void> _saveWidgetState() async {
     final mediaItem = _handler.mediaItem.value;
     final title = mediaItem?.title ?? currentSong?.title ?? '';
@@ -284,11 +303,47 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> restoreLastSession() async {
-    // ...igual ao original, sem mudanças...
+    final saved = await _persistence.load();
+    if (saved == null) return;
+
+    final rawSongs = saved['songs'];
+    if (rawSongs is! List) return;
+
+    final savedPaths = rawSongs
+        .whereType<Map>()
+        .map((ref) => ref['path'])
+        .whereType<String>()
+        .where((path) => path.isNotEmpty)
+        .toList();
+    if (savedPaths.isEmpty) return;
+
+    final librarySongs = await _library.fetchAllSongs();
+    final songsByPath = {
+      for (final song in librarySongs) song.data: song,
+    };
+    final songs = savedPaths
+        .map((path) => songsByPath[path])
+        .whereType<SongModel>()
+        .toList();
+    if (songs.isEmpty) return;
+
+    final savedIndex = saved['currentIndex'];
+    final index =
+        savedIndex is int ? savedIndex.clamp(0, songs.length - 1).toInt() : 0;
+    final savedPosition = saved['positionMs'];
+    final positionMs =
+        savedPosition is int && savedPosition > 0 ? savedPosition : 0;
+
+    await setPlaylist(songs, initialIndex: index, autoPlay: false);
+    if (positionMs > 0) {
+      await _handler.seek(Duration(milliseconds: positionMs));
+    }
+    await _handler.pause();
+    await _savePlaybackState();
   }
 
   Future<void> setPlaylist(List<SongModel> songs,
-      {int initialIndex = 0}) async {
+      {int initialIndex = 0, bool autoPlay = true}) async {
     final token = ++_loadToken;
     _suppressIndexStream = true;
     _playlist = songs;
@@ -299,7 +354,11 @@ class PlayerController extends ChangeNotifier {
     if (token != _loadToken) return;
 
     _suppressIndexStream = false;
-    await _handler.play();
+    if (autoPlay) {
+      await _handler.play();
+    } else {
+      await _handler.pause();
+    }
 
     _savePlaybackState();
     unawaited(_saveWidgetState());

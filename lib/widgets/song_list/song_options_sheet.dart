@@ -8,6 +8,7 @@ void showSongOptions(
   BuildContext context,
   SongModel song, {
   required VoidCallback onPlayNow,
+  required VoidCallback onPlayNext,
   required VoidCallback onSelect,
   required VoidCallback onAddToPlaylist,
   required VoidCallback onEditMetadata,
@@ -32,6 +33,14 @@ void showSongOptions(
             onTap: () {
               Navigator.pop(context);
               onSelect();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.playlist_play),
+            title: const Text('Tocar em seguida'),
+            onTap: () {
+              Navigator.pop(context);
+              onPlayNext();
             },
           ),
           ListTile(
