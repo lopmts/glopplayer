@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:glopplayer/models/playlist_models.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
-import 'package:glopplayer/utils/song_converter.dart';
-import 'package:provider/provider.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:provider/provider.dart';
 
-import '../../widgets/artwork_thumbnail.dart';
 import '../../controllers/player_controller.dart';
+import '../../widgets/artwork_thumbnail.dart';
 import 'player_screen.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
@@ -37,12 +36,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     });
   }
 
-  void _playSong(int index) {
+  Future<void> _playSong(int index) async {
     if (_playlist == null || _playlist!.songs.isEmpty) return;
 
-    final songs = SongConverter.fromPlaylistSongs(_playlist!.songs);
+    final songs = _playlist!.songs;
+    final currentIndex = await context.read<PlayerController>().playPlaylist(
+        songs.map((song) => song.songId).toList(),
+        initialIndex: index);
 
-    context.read<PlayerController>().setPlaylist(songs, initialIndex: index);
+    if (!mounted) return;
+    if (currentIndex == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Música não encontrada na biblioteca'),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PlayerScreen()),

@@ -149,8 +149,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _openPlayer(int index) {
-    context.read<PlayerController>().setPlaylist(_songs, initialIndex: index);
+  void _openPlayer(List<SongModel> songs, int index) {
+    context.read<PlayerController>().setPlaylist(songs, initialIndex: index);
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PlayerScreen()),
@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _openPlayerFromSong(SongModel song) {
     final idx = _songs.indexWhere((s) => s.id == song.id);
     if (idx != -1) {
-      _openPlayer(idx);
+      _openPlayer(_songs, idx);
       return;
     }
 
@@ -311,6 +311,7 @@ class _HomeScreenState extends State<HomeScreen>
               RecentlyPlayedView(
                 key: _recentViewKey,
                 recentService: _recentService,
+                songs: _songs,
                 onSongTap: _openPlayerFromSong,
               ),
               MusicListItems(

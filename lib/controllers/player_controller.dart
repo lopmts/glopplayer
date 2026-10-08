@@ -367,6 +367,30 @@ class PlayerController extends ChangeNotifier {
     // no índice certo)
   }
 
+  Future<int?> playPlaylist(List<int> songIds, {int initialIndex = 0}) async {
+    if (initialIndex < 0 || initialIndex >= songIds.length) return null;
+
+    final librarySongs = await _library.fetchAllSongs();
+    final songsById = {for (final song in librarySongs) song.id: song};
+    final songs = <SongModel>[];
+    int? resolvedInitialIndex;
+
+    for (var index = 0; index < songIds.length; index++) {
+      final song = songsById[songIds[index]];
+      if (song == null) continue;
+
+      if (index == initialIndex) {
+        resolvedInitialIndex = songs.length;
+      }
+      songs.add(song);
+    }
+
+    if (resolvedInitialIndex == null) return null;
+
+    await setPlaylist(songs, initialIndex: resolvedInitialIndex);
+    return resolvedInitialIndex;
+  }
+
   Future<void> playPause() async {
     if (_handler.player.playing) {
       await _handler.pause();

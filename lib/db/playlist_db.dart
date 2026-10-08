@@ -1,7 +1,7 @@
 import 'package:glopplayer/models/playlist_models.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 
 class PlaylistDB {
   static const String _dbName = 'playlist.db';
@@ -91,6 +91,95 @@ class PlaylistDB {
       playlists.add(Playlist.fromMap(map, songs));
     }
     return playlists;
+  }
+
+  static Future<int> mergeImportedPlaylists(
+    List<Map<String, Object?>> importedPlaylists,
+  ) async {
+    final db = await database;
+    var importedCount = 0;
+
+    await db.transaction((txn) async {
+      for (final playlist in importedPlaylists) {
+        final name = playlist['name'] as String;
+        final existing = await txn.query(
+          _playlistTable,
+          columns: ['id', 'updated_at'],
+          where: 'lower(name) = lower(?) AND created_at = ?',
+          whereArgs: [name, playlist['created_at']],
+          limit: 1,
+        );
+
+        final playlistId = existing.isNotEmpty
+            ? existing.first['id'] as int
+            : await txn.insert(_playlistTable, {
+                'name': name,
+                'cover_art_id': playlist['cover_art_id'],
+                'created_at': playlist['created_at'],
+                'updated_at': playlist['updated_at'],
+              });
+
+        final existingSongs = await txn.query(
+          _playlistSongsTable,
+          columns: ['song_id', 'added_at'],
+          where: 'playlist_id = ?',
+          whereArgs: [playlistId],
+        );
+        final songIds =
+            existingSongs.map((song) => song['song_id'] as int).toSet();
+        int? latestAddedAt;
+        int? latestSongId;
+        for (final song in existingSongs) {
+          final addedAt = song['added_at'] as int;
+          if (latestAddedAt == null || addedAt > latestAddedAt) {
+            latestAddedAt = addedAt;
+            latestSongId = song['song_id'] as int;
+          }
+        }
+
+        for (final song in playlist['songs'] as List<Map<String, Object?>>) {
+          final songId = song['song_id'] as int;
+          if (!songIds.add(songId)) continue;
+
+          await txn.insert(_playlistSongsTable, {
+            'playlist_id': playlistId,
+            'song_id': songId,
+            'song_title': song['title'],
+            'song_artist': song['artist'],
+            'song_album': song['album'],
+            'song_duration': song['duration'],
+            'added_at': song['added_at'],
+          });
+          importedCount++;
+
+          final addedAt = song['added_at'] as int;
+          if (latestAddedAt == null || addedAt > latestAddedAt) {
+            latestAddedAt = addedAt;
+            latestSongId = songId;
+          }
+        }
+
+        if (latestAddedAt != null) {
+          final importedUpdatedAt = playlist['updated_at'] as int;
+          final existingUpdatedAt = existing.isNotEmpty
+              ? existing.first['updated_at'] as int
+              : importedUpdatedAt;
+          final updatedAt = [
+            existingUpdatedAt,
+            importedUpdatedAt,
+            latestAddedAt,
+          ].reduce((latest, value) => value > latest ? value : latest);
+          await txn.update(
+            _playlistTable,
+            {'cover_art_id': latestSongId, 'updated_at': updatedAt},
+            where: 'id = ?',
+            whereArgs: [playlistId],
+          );
+        }
+      }
+    });
+
+    return importedCount;
   }
 
   static Future<Playlist?> getPlaylist(int id) async {

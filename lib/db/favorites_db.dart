@@ -76,6 +76,29 @@ class FavoritesDb {
     );
   }
 
+  Future<int> mergeImported(List<Map<String, Object?>> importedRows) async {
+    final db = await database;
+    var importedCount = 0;
+
+    await db.transaction((txn) async {
+      for (final row in importedRows) {
+        final existing = await txn.query(
+          table,
+          columns: ['song_id'],
+          where: 'song_id = ?',
+          whereArgs: [row['song_id']],
+          limit: 1,
+        );
+        if (existing.isNotEmpty) continue;
+
+        await txn.insert(table, row);
+        importedCount++;
+      }
+    });
+
+    return importedCount;
+  }
+
   Future<void> delete(int songId) async {
     final db = await database;
     await db.delete(table, where: 'song_id = ?', whereArgs: [songId]);

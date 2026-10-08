@@ -58,9 +58,9 @@ class _MusicListScreenState extends State<MusicListScreen> {
     }
   }
 
-  void _playSong(int index) {
+  void _playSong(List<SongModel> songs, int index) {
     final controller = context.read<PlayerController>();
-    controller.setPlaylist(_songs, initialIndex: index);
+    controller.setPlaylist(songs, initialIndex: index);
     Navigator.pushNamed(context, '/player');
   }
 

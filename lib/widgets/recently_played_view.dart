@@ -1,19 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:glopplayer/widgets/add_to_playlist_dialog.dart';
+import 'package:glopplayer/widgets/music_genres_section.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../services/recently_played_service.dart';
 import '../widgets/artwork_thumbnail.dart';
+import 'top_played_banner.dart';
 
 /// Conteúdo da aba "Início" da HomeScreen: organiza o histórico de
 /// reprodução em seções (músicas recentes / álbuns recentes) e oferece
 /// a opção de limpar tudo.
 class RecentlyPlayedView extends StatefulWidget {
   final RecentlyPlayedService recentService;
+  final List<SongModel> songs;
   final void Function(SongModel song) onSongTap;
 
   const RecentlyPlayedView({
     super.key,
     required this.recentService,
+    required this.songs,
     required this.onSongTap,
   });
 
@@ -22,12 +29,25 @@ class RecentlyPlayedView extends StatefulWidget {
 }
 
 class RecentlyPlayedViewState extends State<RecentlyPlayedView> {
+  final GlobalKey<TopPlayedBannerState> _popularBannerKey =
+      GlobalKey<TopPlayedBannerState>();
   late Future<List<RecentPlayEntry>> _future;
 
   @override
   void initState() {
     super.initState();
     _future = widget.recentService.getRecent();
+    widget.recentService.addListener(_onRecentChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.recentService.removeListener(_onRecentChanged);
+    super.dispose();
+  }
+
+  void _onRecentChanged() {
+    if (mounted) unawaited(refresh());
   }
 
   /// Exposto publicamente pra HomeScreen poder forçar um refresh
@@ -35,7 +55,10 @@ class RecentlyPlayedViewState extends State<RecentlyPlayedView> {
   Future<void> refresh() async {
     final updated = widget.recentService.getRecent();
     setState(() => _future = updated);
-    await updated;
+    await Future.wait([
+      updated,
+      _popularBannerKey.currentState?.refresh() ?? Future<void>.value(),
+    ]);
   }
 
   Future<void> _confirmClear() async {
@@ -62,7 +85,6 @@ class RecentlyPlayedViewState extends State<RecentlyPlayedView> {
 
     if (confirmed == true) {
       await widget.recentService.clear();
-      await refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Histórico limpo')),
@@ -100,11 +122,14 @@ class RecentlyPlayedViewState extends State<RecentlyPlayedView> {
           return RefreshIndicator(
             onRefresh: refresh,
             child: ListView(
-              children: const [
-                SizedBox(height: 120),
-                Icon(Icons.history, size: 64, color: Colors.grey),
-                SizedBox(height: 12),
-                Padding(
+              children: [
+                MusicGenresSection(songs: widget.songs),
+                _buildTopPlayedBanner(),
+                const SizedBox(height: 16),
+                const SizedBox(height: 120),
+                const Icon(Icons.history, size: 64, color: Colors.grey),
+                const SizedBox(height: 12),
+                const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 32),
                   child: Text(
                     'Nenhuma música tocada ainda.\n'
@@ -124,6 +149,8 @@ class RecentlyPlayedViewState extends State<RecentlyPlayedView> {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
             children: [
+              MusicGenresSection(songs: widget.songs),
+              _buildTopPlayedBanner(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
                 child: Row(
@@ -188,6 +215,19 @@ class RecentlyPlayedViewState extends State<RecentlyPlayedView> {
               ],
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopPlayedBanner() {
+    return TopPlayedBanner(
+      key: _popularBannerKey,
+      onPlaySong: widget.onSongTap,
+      onAddToPlaylist: (song) {
+        showDialog<void>(
+          context: context,
+          builder: (_) => AddToPlaylistDialog(songs: [song]),
         );
       },
     );

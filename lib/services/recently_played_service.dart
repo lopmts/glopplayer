@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,7 +81,14 @@ class RecentPlayEntry {
 /// com uma lista JSON) — suficiente pro tamanho do histórico (até
 /// [maxEntries] itens). Se um dia precisar de mais volume/consultas,
 /// dá pra trocar por uma tabela SQLite sem mudar a API pública.
-class RecentlyPlayedService {
+class RecentlyPlayedService extends ChangeNotifier {
+  RecentlyPlayedService._internal();
+
+  static final RecentlyPlayedService instance =
+      RecentlyPlayedService._internal();
+
+  factory RecentlyPlayedService() => instance;
+
   static const _prefsKey = 'recently_played_songs_v1';
   static const int maxEntries = 60;
 
@@ -136,6 +144,7 @@ class RecentlyPlayedService {
 
     _cache = entries;
     await _persist(entries);
+    notifyListeners();
   }
 
   /// Remove uma música específica do histórico.
@@ -144,12 +153,14 @@ class RecentlyPlayedService {
     entries.removeWhere((e) => e.songId == songId);
     _cache = entries;
     await _persist(entries);
+    notifyListeners();
   }
 
   /// Limpa todo o histórico de reprodução.
   Future<void> clear() async {
     _cache = [];
     await _persist([]);
+    notifyListeners();
   }
 
   Future<void> _persist(List<RecentPlayEntry> entries) async {

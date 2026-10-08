@@ -17,7 +17,7 @@ import 'song_list/active_filter_chips.dart';
 
 class MusicListItems extends StatefulWidget {
   final List<SongModel> songs;
-  final Function(int index)? onSongTap;
+  final void Function(List<SongModel> songs, int index)? onSongTap;
 
   /// Callback para excluir as músicas selecionadas. Se não for passado,
   /// o widget só avisa via SnackBar que a função não está pronta.
@@ -108,7 +108,7 @@ class _MusicListScreenState extends State<MusicListItems> {
   // subconjunto, não a biblioteca inteira.
   void _playSong(BuildContext context, List<SongModel> songs, int index) {
     if (widget.onSongTap != null) {
-      widget.onSongTap!(index);
+      widget.onSongTap!(songs, index);
       return;
     }
     context.read<PlayerController>().setPlaylist(songs, initialIndex: index);

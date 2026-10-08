@@ -7,6 +7,7 @@ import 'package:glopplayer/services/music_library_service.dart';
 import 'package:glopplayer/controllers/player_controller.dart';
 import 'package:glopplayer/utils/format_utils.dart';
 import 'package:glopplayer/widgets/artwork_thumbnail.dart';
+import 'package:glopplayer/widgets/add_to_playlist_dialog.dart';
 import 'package:glopplayer/widgets/mini_player_bar.dart';
 import 'package:glopplayer/services/additional_settings_service.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -226,8 +227,9 @@ class _AlbumSongsScreenState extends State<AlbumSongsScreen> {
   }
 
   void _addToPlaylist(SongModel song) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${song.title} adicionado à playlist')),
+    showDialog<void>(
+      context: context,
+      builder: (_) => AddToPlaylistDialog(songs: [song]),
     );
   }
 

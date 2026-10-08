@@ -37,6 +37,10 @@ gradle.rootProject {
             extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
                 // Alinha TODOS os plugins ao mesmo compileSdk do app —
                 // resolve o "AAR metadata" (androidx exigindo API 34+)
+                val moduleGroup = project.group.toString()
+                if (namespace.isNullOrBlank() && moduleGroup != "unspecified") {
+                    namespace = moduleGroup
+                }
                 compileSdkVersion(36)
 
                 compileOptions {
