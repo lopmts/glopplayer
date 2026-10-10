@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
-import '../../utils/format_utils.dart';
 import '../../utils/audio_type_utils.dart';
+import '../../utils/format_utils.dart';
 
 void showSongOptions(
   BuildContext context,
@@ -12,62 +12,77 @@ void showSongOptions(
   required VoidCallback onSelect,
   required VoidCallback onAddToPlaylist,
   required VoidCallback onEditMetadata,
+  VoidCallback? onRemoveFromPlaylist,
 }) {
   showModalBottomSheet(
     context: context,
     builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.play_arrow),
-            title: const Text('Tocar agora'),
-            onTap: () {
-              Navigator.pop(context);
-              onPlayNow();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.check_box_outlined),
-            title: const Text('Selecionar'),
-            onTap: () {
-              Navigator.pop(context);
-              onSelect();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.playlist_play),
-            title: const Text('Tocar em seguida'),
-            onTap: () {
-              Navigator.pop(context);
-              onPlayNext();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.add),
-            title: const Text('Adicionar à playlist'),
-            onTap: () {
-              Navigator.pop(context);
-              onAddToPlaylist();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Editar metadados'),
-            onTap: () {
-              Navigator.pop(context);
-              onEditMetadata();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Detalhes da música'),
-            onTap: () {
-              Navigator.pop(context);
-              showSongDetailsDialog(context, song);
-            },
-          ),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.play_arrow),
+              title: const Text('Tocar agora'),
+              onTap: () {
+                Navigator.pop(context);
+                onPlayNow();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_box_outlined),
+              title: const Text('Selecionar'),
+              onTap: () {
+                Navigator.pop(context);
+                onSelect();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_play),
+              title: const Text('Tocar em seguida'),
+              onTap: () {
+                Navigator.pop(context);
+                onPlayNext();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Adicionar à playlist'),
+              onTap: () {
+                Navigator.pop(context);
+                onAddToPlaylist();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Editar metadados'),
+              onTap: () {
+                Navigator.pop(context);
+                onEditMetadata();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Detalhes da música'),
+              onTap: () {
+                Navigator.pop(context);
+                showSongDetailsDialog(context, song);
+              },
+            ),
+            if (onRemoveFromPlaylist != null)
+              ListTile(
+                leading: const Icon(
+                  Icons.remove_circle_outline,
+                  color: Colors.red,
+                ),
+                title: const Text('Remover da playlist'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onRemoveFromPlaylist();
+                },
+              ),
+          ],
+        ),
       ),
     ),
   );
@@ -87,7 +102,8 @@ void showSongDetailsDialog(BuildContext context, SongModel song) {
           Text('Álbum: ${song.album ?? "Desconhecido"}'),
           const SizedBox(height: 8),
           Text(
-              'Duração: ${formatDuration(Duration(milliseconds: song.duration ?? 0))}'),
+            'Duração: ${formatDuration(Duration(milliseconds: song.duration ?? 0))}',
+          ),
           const SizedBox(height: 8),
           Text('Gênero: ${song.genre ?? "Desconhecido"}'),
           const SizedBox(height: 8),

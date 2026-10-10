@@ -8,6 +8,7 @@ class SongSelectionBar extends StatelessWidget {
   final VoidCallback onEditMetadata;
   final VoidCallback onAddToPlaylist;
   final VoidCallback onDelete;
+  final String deleteTooltip;
 
   const SongSelectionBar({
     super.key,
@@ -18,6 +19,7 @@ class SongSelectionBar extends StatelessWidget {
     required this.onEditMetadata,
     required this.onAddToPlaylist,
     required this.onDelete,
+    this.deleteTooltip = 'Excluir',
   });
 
   @override
@@ -56,7 +58,7 @@ class SongSelectionBar extends StatelessWidget {
             ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Excluir',
+              tooltip: deleteTooltip,
               onPressed: onDelete,
             ),
           ],
