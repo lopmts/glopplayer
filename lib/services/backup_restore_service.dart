@@ -3,6 +3,20 @@ import 'dart:convert';
 import 'package:glopplayer/db/favorites_db.dart';
 import 'package:glopplayer/db/playlist_db.dart';
 
+typedef BackupProgressCallback = Future<void> Function(int current, int total);
+
+class BackupDataSummary {
+  final int playlists;
+  final int playlistSongs;
+  final int favorites;
+
+  const BackupDataSummary({
+    required this.playlists,
+    required this.playlistSongs,
+    required this.favorites,
+  });
+}
+
 class AppBackup {
   static const formatName = 'glopplayer-backup';
   static const currentVersion = 1;
@@ -153,35 +167,102 @@ class BackupImportResult {
 }
 
 class BackupRestoreService {
-  static Future<String> exportJson() async {
+  static Future<BackupDataSummary> getDataSummary() async {
+    final counts = await Future.wait<int>([
+      PlaylistDB.getPlaylistCount(),
+      PlaylistDB.getAllPlaylistSongCount(),
+      FavoritesDb.instance.getCount(),
+    ]);
+    return BackupDataSummary(
+      playlists: counts[0],
+      playlistSongs: counts[1],
+      favorites: counts[2],
+    );
+  }
+
+  static Future<String> exportJson({BackupProgressCallback? onProgress}) async {
     final playlists = await PlaylistDB.getAllPlaylists();
     final favorites = await FavoritesDb.instance.getAll();
+    final total = playlists.length +
+        playlists.fold<int>(
+          0,
+          (count, playlist) => count + playlist.songs.length,
+        ) +
+        favorites.length;
+    var current = 0;
+    final backupPlaylists = <Map<String, Object?>>[];
+    for (final playlist in playlists) {
+      final map = playlist.toMap();
+      final songs = <Map<String, Object?>>[];
+      for (final song in playlist.songs) {
+        final songMap = song.toMap();
+        songs.add({
+          'song_id': songMap['song_id'],
+          'title': songMap['song_title'],
+          'artist': songMap['song_artist'],
+          'album': songMap['song_album'],
+          'duration': songMap['song_duration'],
+          'added_at': songMap['added_at'],
+        });
+        current++;
+        await onProgress?.call(current, total);
+      }
+      map['songs'] = songs;
+      backupPlaylists.add(Map<String, Object?>.from(map));
+      current++;
+      await onProgress?.call(current, total);
+    }
+    final backupFavorites = <Map<String, Object?>>[];
+    for (final favorite in favorites) {
+      backupFavorites.add(favorite);
+      current++;
+      await onProgress?.call(current, total);
+    }
+
     final backup = AppBackup(
-      playlists: playlists.map((playlist) {
-        final map = playlist.toMap();
-        map['songs'] = playlist.songs.map((song) {
-          final songMap = song.toMap();
-          return <String, Object?>{
-            'song_id': songMap['song_id'],
-            'title': songMap['song_title'],
-            'artist': songMap['song_artist'],
-            'album': songMap['song_album'],
-            'duration': songMap['song_duration'],
-            'added_at': songMap['added_at'],
-          };
-        }).toList();
-        return Map<String, Object?>.from(map);
-      }).toList(),
-      favorites: favorites,
+      playlists: backupPlaylists,
+      favorites: backupFavorites,
     );
+    if (total == 0) {
+      await onProgress?.call(1, 1);
+    } else if (onProgress != null) {
+      await onProgress(current, total);
+    }
     return const JsonEncoder.withIndent('  ').convert(backup.toMap());
   }
 
-  static Future<BackupImportResult> importBackup(AppBackup backup) async {
-    final playlistCount =
-        await PlaylistDB.mergeImportedPlaylists(backup.playlists);
-    final favoriteCount =
-        await FavoritesDb.instance.mergeImported(backup.favorites);
+  static Future<BackupImportResult> importBackup(
+    AppBackup backup, {
+    BackupProgressCallback? onProgress,
+  }) async {
+    final total = backup.playlists.length +
+        backup.playlists.fold<int>(
+          0,
+          (count, playlist) =>
+              count + (playlist['songs'] as List<Map<String, Object?>>).length,
+        ) +
+        backup.favorites.length;
+    var current = 0;
+
+    Future<void> reportProgress() async {
+      current++;
+      await onProgress?.call(current, total);
+    }
+
+    final playlistCount = await PlaylistDB.mergeImportedPlaylists(
+      backup.playlists,
+      onPlaylistProcessed: reportProgress,
+      onSongProcessed: reportProgress,
+    );
+    final favoriteCount = await FavoritesDb.instance.mergeImported(
+      backup.favorites,
+      onRowProcessed: reportProgress,
+    );
+    if (total == 0) {
+      await onProgress?.call(1, 1);
+    } else if (onProgress != null) {
+      await onProgress(current, total);
+    }
     return BackupImportResult(
       playlists: backup.playlists.length,
       playlistSongs: playlistCount,

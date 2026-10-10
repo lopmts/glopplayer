@@ -1,15 +1,7 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:glopplayer/controllers/favorites_controller.dart';
-import 'package:glopplayer/provider/playlist_provider.dart';
-import 'package:glopplayer/services/backup_restore_service.dart';
 import 'package:glopplayer/services/update_service.dart';
 import 'package:glopplayer/widgets/update_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,7 +13,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
   bool _checkingUpdate = false;
-  bool _handlingBackup = false;
 
   @override
   void initState() {
@@ -80,98 +71,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
         break;
-    }
-  }
-
-  Future<void> _exportBackup() async {
-    if (_handlingBackup) return;
-    setState(() => _handlingBackup = true);
-
-    try {
-      final json = await BackupRestoreService.exportJson();
-      final date = DateTime.now().toIso8601String().split('T').first;
-      final path = await FilePicker.saveFile(
-        dialogTitle: 'Salvar backup do GlopPlay',
-        fileName: 'glopplayer-backup-$date.json',
-        type: FileType.custom,
-        allowedExtensions: const ['json'],
-        mimeType: 'application/json',
-        bytes: Uint8List.fromList(utf8.encode(json)),
-      );
-      if (!mounted || path == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Backup exportado com sucesso.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível exportar o backup: $error')),
-      );
-    } finally {
-      if (mounted) setState(() => _handlingBackup = false);
-    }
-  }
-
-  Future<void> _importBackup() async {
-    if (_handlingBackup) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restaurar backup?'),
-        content: const Text(
-          'As playlists, músicas das playlists e favoritos do arquivo serão '
-          'mesclados com os dados atuais. Nada será apagado. Itens já '
-          'existentes não serão duplicados. Os arquivos de música não fazem '
-          'parte do backup.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Escolher arquivo'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _handlingBackup = true);
-    try {
-      final selection = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: const ['json'],
-      );
-      if (selection == null) return;
-      final bytes = await selection.readAsBytes();
-      final backup = AppBackup.decode(utf8.decode(bytes));
-      final result = await BackupRestoreService.importBackup(backup);
-      if (!mounted) return;
-      final playlistProvider = context.read<PlaylistProvider>();
-      final favoritesController = context.read<FavoritesController>();
-      await playlistProvider.loadPlaylists();
-      await favoritesController.refresh();
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Backup restaurado: ${result.playlists} playlists processadas, '
-            '${result.playlistSongs} músicas e ${result.favorites} favoritos '
-            'adicionados.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível restaurar o backup: $error')),
-      );
-    } finally {
-      if (mounted) setState(() => _handlingBackup = false);
     }
   }
 
@@ -248,20 +147,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsGroup(
               children: [
                 _SettingsTile(
-                  icon: Icons.file_upload_outlined,
-                  title: 'Exportar dados',
-                  subtitle: 'Salvar playlists e favoritos em um arquivo JSON',
-                  onTap: _handlingBackup ? null : _exportBackup,
-                  showArrow: !_handlingBackup,
-                  isLoading: _handlingBackup,
-                ),
-                _SettingsTile(
-                  icon: Icons.file_download_outlined,
-                  title: 'Importar dados',
-                  subtitle: 'Restaurar playlists e favoritos de um backup',
-                  onTap: _handlingBackup ? null : _importBackup,
-                  showArrow: !_handlingBackup,
-                  isLoading: _handlingBackup,
+                  icon: Icons.backup_outlined,
+                  title: 'Backup e restauração',
+                  subtitle: 'Exportar ou importar playlists e favoritos',
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/pages/backup_settings_screen',
+                  ),
                 ),
               ],
             ),
