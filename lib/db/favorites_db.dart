@@ -56,6 +56,12 @@ class FavoritesDb {
     return db.query(table, orderBy: 'favorited_at DESC');
   }
 
+  Future<int> getCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) FROM $table');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   Future<bool> exists(int songId) async {
     final db = await database;
     final rows = await db.query(
@@ -76,7 +82,10 @@ class FavoritesDb {
     );
   }
 
-  Future<int> mergeImported(List<Map<String, Object?>> importedRows) async {
+  Future<int> mergeImported(
+    List<Map<String, Object?>> importedRows, {
+    Future<void> Function()? onRowProcessed,
+  }) async {
     final db = await database;
     var importedCount = 0;
 
@@ -89,10 +98,11 @@ class FavoritesDb {
           whereArgs: [row['song_id']],
           limit: 1,
         );
-        if (existing.isNotEmpty) continue;
-
-        await txn.insert(table, row);
-        importedCount++;
+        if (existing.isEmpty) {
+          await txn.insert(table, row);
+          importedCount++;
+        }
+        await onRowProcessed?.call();
       }
     });
 

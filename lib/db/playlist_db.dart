@@ -93,9 +93,25 @@ class PlaylistDB {
     return playlists;
   }
 
+  static Future<int> getPlaylistCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) FROM $_playlistTable');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  static Future<int> getAllPlaylistSongCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) FROM $_playlistSongsTable',
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   static Future<int> mergeImportedPlaylists(
-    List<Map<String, Object?>> importedPlaylists,
-  ) async {
+    List<Map<String, Object?>> importedPlaylists, {
+    Future<void> Function()? onPlaylistProcessed,
+    Future<void> Function()? onSongProcessed,
+  }) async {
     final db = await database;
     var importedCount = 0;
 
@@ -139,24 +155,25 @@ class PlaylistDB {
 
         for (final song in playlist['songs'] as List<Map<String, Object?>>) {
           final songId = song['song_id'] as int;
-          if (!songIds.add(songId)) continue;
+          if (songIds.add(songId)) {
+            await txn.insert(_playlistSongsTable, {
+              'playlist_id': playlistId,
+              'song_id': songId,
+              'song_title': song['title'],
+              'song_artist': song['artist'],
+              'song_album': song['album'],
+              'song_duration': song['duration'],
+              'added_at': song['added_at'],
+            });
+            importedCount++;
 
-          await txn.insert(_playlistSongsTable, {
-            'playlist_id': playlistId,
-            'song_id': songId,
-            'song_title': song['title'],
-            'song_artist': song['artist'],
-            'song_album': song['album'],
-            'song_duration': song['duration'],
-            'added_at': song['added_at'],
-          });
-          importedCount++;
-
-          final addedAt = song['added_at'] as int;
-          if (latestAddedAt == null || addedAt > latestAddedAt) {
-            latestAddedAt = addedAt;
-            latestSongId = songId;
+            final addedAt = song['added_at'] as int;
+            if (latestAddedAt == null || addedAt > latestAddedAt) {
+              latestAddedAt = addedAt;
+              latestSongId = songId;
+            }
           }
+          await onSongProcessed?.call();
         }
 
         if (latestAddedAt != null) {
@@ -176,6 +193,7 @@ class PlaylistDB {
             whereArgs: [playlistId],
           );
         }
+        await onPlaylistProcessed?.call();
       }
     });
 

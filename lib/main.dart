@@ -15,6 +15,7 @@ import 'package:glopplayer/screens/pages/cache_management_screen.dart';
 import 'package:glopplayer/screens/pages/local_library_screen.dart';
 import 'package:glopplayer/screens/pages/theme_settings_screen.dart';
 import 'package:glopplayer/screens/pages/additional_settings_screen.dart';
+import 'package:glopplayer/screens/pages/backup_settings_screen.dart';
 import 'package:glopplayer/services/additional_settings_service.dart';
 import 'package:glopplayer/theme/dynamic_color_wrapper.dart';
 import 'package:provider/provider.dart';
@@ -109,8 +110,8 @@ class _MyAppState extends State<MyApp> {
     final action = uri.host.isNotEmpty
         ? uri.host.toLowerCase()
         : uri.pathSegments.isNotEmpty
-            ? uri.pathSegments.first.toLowerCase()
-            : '';
+                ? uri.pathSegments.first.toLowerCase()
+                : '';
 
     switch (action) {
       case 'playpause':
@@ -156,6 +157,8 @@ class _MyAppState extends State<MyApp> {
                   const ThemeSettingsScreen(),
               '/pages/additional_settings_screen': (context) =>
                   const AdditionalSettingsScreen(),
+              '/pages/backup_settings_screen': (context) =>
+                  const BackupSettingsScreen(),
               '/pages/local_library_screen': (context) =>
                   const LocalLibraryScreen(),
               '/pages/player': (context) => const PlayerScreen(),
@@ -163,12 +166,12 @@ class _MyAppState extends State<MyApp> {
                   const CacheManagementScreen(),
               '/pages/logs_screen': (context) => const LogsScreen(),
               '/pages/favorites': (context) => FavoritesScreen(
-                    onSongTap: (song) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PlayerScreen()),
-                      );
-                    },
-                  ),
+                        onSongTap: (song) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                          );
+                        },
+                      ),
             },
           );
         },
