@@ -1,27 +1,33 @@
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:path/path.dart' as p;
 
-SongModel fakeSongModelFromExternalUri(String uriString) {
+SongModel fakeSongModelFromExternalUri(
+  String uriString, {
+  String? title,
+  String? artist,
+  String? album,
+  double? durationMs,
+}) {
   final uri = Uri.parse(uriString);
-  final isContentUri = uri.scheme == 'content';
-
-  String displayName;
-  String dataPath;
-
-  if (isContentUri) {
-    displayName = 'Áudio externo';
-    dataPath = uriString; // <- mantém a content:// URI, não zera
-  } else {
-    dataPath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
-    displayName = dataPath.split('/').last;
-  }
+  final dataPath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
+  final displayName = p.basename(dataPath);
+  final normalizedTitle = title?.trim();
+  final normalizedArtist = artist?.trim();
+  final normalizedAlbum = album?.trim();
 
   return SongModel({
     '_id': -1,
-    'title': displayName,
-    'artist': 'Arquivo externo',
-    'album': null,
+    'title': normalizedTitle == null || normalizedTitle.isEmpty
+        ? displayName
+        : normalizedTitle,
+    'artist': normalizedArtist == null || normalizedArtist.isEmpty
+        ? 'Artista desconhecido'
+        : normalizedArtist,
+    'album': normalizedAlbum == null || normalizedAlbum.isEmpty
+        ? 'Álbum desconhecido'
+        : normalizedAlbum,
     '_data': dataPath,
-    'duration': null,
+    'duration': durationMs?.round(),
     'is_music': 1,
     'is_podcast': 0,
     'is_ringtone': 0,
@@ -93,8 +99,9 @@ class MusicLibraryService {
   /// pasta (comportamento padrão). Se tiver pastas, só retorna músicas
   /// cujo caminho está dentro de alguma delas — usado quando o usuário
   /// configurou pastas específicas em "Local Library".
-  Future<List<SongModel>> fetchAllSongs(
-      {List<String>? restrictToFolders}) async {
+  Future<List<SongModel>> fetchAllSongs({
+    List<String>? restrictToFolders,
+  }) async {
     final songs = await _audioQuery.querySongs(
       sortType: SongSortType.TITLE,
       orderType: OrderType.ASC_OR_SMALLER,
@@ -112,8 +119,9 @@ class MusicLibraryService {
   /// Álbuns são derivados a partir das músicas já filtradas (real + dentro
   /// das pastas configuradas) — só aparece álbum que tem pelo menos 1
   /// música válida dentro do escopo selecionado.
-  Future<List<AlbumModel>> fetchAllAlbums(
-      {List<String>? restrictToFolders}) async {
+  Future<List<AlbumModel>> fetchAllAlbums({
+    List<String>? restrictToFolders,
+  }) async {
     final albums = await _audioQuery.queryAlbums(
       sortType: AlbumSortType.ALBUM,
       orderType: OrderType.ASC_OR_SMALLER,
@@ -122,8 +130,10 @@ class MusicLibraryService {
     );
 
     final realSongs = await fetchAllSongs(restrictToFolders: restrictToFolders);
-    final validAlbumIds =
-        realSongs.map((s) => s.albumId).whereType<int>().toSet();
+    final validAlbumIds = realSongs
+        .map((s) => s.albumId)
+        .whereType<int>()
+        .toSet();
 
     return albums.where((a) => validAlbumIds.contains(a.id)).toList();
   }

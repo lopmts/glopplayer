@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:app_links/app_links.dart';
 import 'package:audio_service/audio_service.dart';
@@ -17,18 +18,31 @@ import 'package:glopplayer/screens/pages/theme_settings_screen.dart';
 import 'package:glopplayer/screens/pages/additional_settings_screen.dart';
 import 'package:glopplayer/screens/pages/backup_settings_screen.dart';
 import 'package:glopplayer/services/additional_settings_service.dart';
+import 'package:glopplayer/services/external_audio_service.dart';
+import 'package:glopplayer/services/metadata_service.dart';
 import 'package:glopplayer/theme/dynamic_color_wrapper.dart';
 import 'package:provider/provider.dart';
 import 'package:glopplayer/widgets/tabs_navegation.dart';
+
 import 'services/audio_player_handler.dart';
 import 'controllers/player_controller.dart';
+
 import 'package:glopplayer/widgets/update_dialog.dart';
 
 late MyAudioHandler audioHandler;
 late PlayerController playerController;
 
+Future<void> _handleExternalAudioUri(String uri) async {
+  try {
+    await playerController.playExternalFile(uri);
+  } catch (e, st) {
+    debugPrint('Não foi possível abrir o áudio compartilhado: $e\n$st');
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MetadataService.init();
 
   audioHandler = await AudioService.init(
     builder: () => MyAudioHandler(),
@@ -44,20 +58,33 @@ Future<void> main() async {
 
   runApp(const MyApp());
 
-  final appLinks = AppLinks();
-  final initialUri = await appLinks.getInitialLink();
-
-  if (initialUri != null) {
-    await playerController.playExternalFile(initialUri.toString());
+  if (Platform.isAndroid) {
+    ExternalAudioService.audioUris.listen(
+      (uri) => unawaited(_handleExternalAudioUri(uri)),
+      onError: (Object error) =>
+          debugPrint('Erro ao receber áudio compartilhado: $error'),
+    );
+    final initialUri = await ExternalAudioService.getInitialAudioUri();
+    if (initialUri != null) {
+      await _handleExternalAudioUri(initialUri);
+    } else {
+      await playerController.restoreLastSession();
+    }
   } else {
-    await playerController.restoreLastSession();
-  }
+    final appLinks = AppLinks();
+    final initialUri = await appLinks.getInitialLink();
 
-  // agora só escuta links que chegarem DEPOIS do app já estar rodando
-  appLinks.uriLinkStream.listen(
-    (uri) => playerController.playExternalFile(uri.toString()),
-    onError: (err) => debugPrint('Erro na intent de áudio: $err'),
-  );
+    if (initialUri != null) {
+      await _handleExternalAudioUri(initialUri.toString());
+    } else {
+      await playerController.restoreLastSession();
+    }
+
+    appLinks.uriLinkStream.listen(
+      (uri) => unawaited(_handleExternalAudioUri(uri.toString())),
+      onError: (err) => debugPrint('Erro na intent de áudio: $err'),
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -110,8 +137,8 @@ class _MyAppState extends State<MyApp> {
     final action = uri.host.isNotEmpty
         ? uri.host.toLowerCase()
         : uri.pathSegments.isNotEmpty
-                ? uri.pathSegments.first.toLowerCase()
-                : '';
+        ? uri.pathSegments.first.toLowerCase()
+        : '';
 
     switch (action) {
       case 'playpause':
@@ -134,7 +161,8 @@ class _MyAppState extends State<MyApp> {
       providers: [
         ChangeNotifierProvider.value(value: playerController),
         ChangeNotifierProvider(
-            create: (_) => PlaylistProvider()..loadPlaylists()),
+          create: (_) => PlaylistProvider()..loadPlaylists(),
+        ),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LibraryController()),
         ChangeNotifierProvider(create: (_) => FavoritesController()),
@@ -166,12 +194,12 @@ class _MyAppState extends State<MyApp> {
                   const CacheManagementScreen(),
               '/pages/logs_screen': (context) => const LogsScreen(),
               '/pages/favorites': (context) => FavoritesScreen(
-                        onSongTap: (song) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const PlayerScreen()),
-                          );
-                        },
-                      ),
+                onSongTap: (song) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                  );
+                },
+              ),
             },
           );
         },

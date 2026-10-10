@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:glopplayer/services/crossfade_settings_service.dart';
+import 'package:glopplayer/services/external_audio_service.dart';
+import 'package:glopplayer/services/metadata_service.dart';
 import 'package:glopplayer/services/music_library_service.dart';
 import 'package:glopplayer/services/playback_persistence_service.dart';
 import 'package:glopplayer/services/recently_played_service.dart';
@@ -17,7 +19,7 @@ class PlayerController extends ChangeNotifier {
   final RecentlyPlayedService _recentlyPlayed; // NOVO — histórico de reprodução
   final PlaybackPersistenceService _persistence = PlaybackPersistenceService();
   final CrossfadeSettingsService
-      _crossfadeSettings; // NOVO — settings de crossfade
+  _crossfadeSettings; // NOVO — settings de crossfade
   Future<void>? _pendingAlbumAppend;
 
   List<SongModel> _playlist = [];
@@ -77,9 +79,9 @@ class PlayerController extends ChangeNotifier {
     MusicLibraryService? library,
     RecentlyPlayedService? recentlyPlayed,
     CrossfadeSettingsService? crossfadeSettings, // NOVO
-  })  : _library = library ?? MusicLibraryService(),
-        _recentlyPlayed = recentlyPlayed ?? RecentlyPlayedService(),
-        _crossfadeSettings = crossfadeSettings ?? CrossfadeSettingsService() {
+  }) : _library = library ?? MusicLibraryService(),
+       _recentlyPlayed = recentlyPlayed ?? RecentlyPlayedService(),
+       _crossfadeSettings = crossfadeSettings ?? CrossfadeSettingsService() {
     _handler.player.currentIndexStream.listen((index) {
       if (_suppressIndexStream) return;
       if (index != null &&
@@ -205,8 +207,10 @@ class PlayerController extends ChangeNotifier {
     }
 
     // Ainda dentro do álbum atual, mas perto do fim -> anexa o próximo
-    final triggerRelative =
-        (_currentAlbumLength - 2).clamp(0, _currentAlbumLength - 1);
+    final triggerRelative = (_currentAlbumLength - 2).clamp(
+      0,
+      _currentAlbumLength - 1,
+    );
     if (!_nextAlbumAppended && relativeIndex >= triggerRelative) {
       _nextAlbumAppended = true;
       _appendNextAlbumInQueue();
@@ -318,9 +322,7 @@ class PlayerController extends ChangeNotifier {
     if (savedPaths.isEmpty) return;
 
     final librarySongs = await _library.fetchAllSongs();
-    final songsByPath = {
-      for (final song in librarySongs) song.data: song,
-    };
+    final songsByPath = {for (final song in librarySongs) song.data: song};
     final songs = savedPaths
         .map((path) => songsByPath[path])
         .whereType<SongModel>()
@@ -328,11 +330,13 @@ class PlayerController extends ChangeNotifier {
     if (songs.isEmpty) return;
 
     final savedIndex = saved['currentIndex'];
-    final index =
-        savedIndex is int ? savedIndex.clamp(0, songs.length - 1).toInt() : 0;
+    final index = savedIndex is int
+        ? savedIndex.clamp(0, songs.length - 1).toInt()
+        : 0;
     final savedPosition = saved['positionMs'];
-    final positionMs =
-        savedPosition is int && savedPosition > 0 ? savedPosition : 0;
+    final positionMs = savedPosition is int && savedPosition > 0
+        ? savedPosition
+        : 0;
 
     await setPlaylist(songs, initialIndex: index, autoPlay: false);
     if (positionMs > 0) {
@@ -342,8 +346,11 @@ class PlayerController extends ChangeNotifier {
     await _savePlaybackState();
   }
 
-  Future<void> setPlaylist(List<SongModel> songs,
-      {int initialIndex = 0, bool autoPlay = true}) async {
+  Future<void> setPlaylist(
+    List<SongModel> songs, {
+    int initialIndex = 0,
+    bool autoPlay = true,
+  }) async {
     final token = ++_loadToken;
     _suppressIndexStream = true;
     _playlist = songs;
@@ -405,12 +412,26 @@ class PlayerController extends ChangeNotifier {
   void playSong(SongModel song) {}
 
   Future<void> playExternalFile(String uriString) async {
+    final uri = Uri.parse(uriString);
+    final path = uri.scheme == 'content'
+        ? await ExternalAudioService.copyToCache(uriString)
+        : uri.scheme == 'file'
+        ? uri.toFilePath()
+        : uriString;
+    final metadata = await MetadataService.read(path);
+
     // Arquivo externo não pertence a um álbum -> zera o contexto de álbum
     _currentAlbum = null;
     _currentAlbumLength = 0;
     _pendingNextAlbum = null;
 
-    final fakeSong = fakeSongModelFromExternalUri(uriString);
+    final fakeSong = fakeSongModelFromExternalUri(
+      path,
+      title: metadata?.title,
+      artist: metadata?.artist,
+      album: metadata?.album,
+      durationMs: metadata?.durationMs,
+    );
     await setPlaylist([fakeSong], initialIndex: 0);
   }
 

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:glopplayer/services/metadata_service.dart';
 
 class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
@@ -54,10 +55,14 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   String _resolveSongUri(SongModel song) {
     final path = song.data;
     if (path.isNotEmpty) {
+      if (path.startsWith('content://')) return path;
       return Uri.file(path).toString();
     }
     return song.uri ?? '';
   }
+
+  int _artworkCacheKey(SongModel song) =>
+      song.id < 0 ? song.data.hashCode : song.albumId ?? song.id;
 
   Future<void> setSongs(List<SongModel> songs, {int initialIndex = 0}) async {
     await _cancelCrossfade(
@@ -67,7 +72,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final sources = <AudioSource>[];
 
     for (final song in songs) {
-      final cacheKey = song.albumId ?? song.id;
+      final cacheKey = _artworkCacheKey(song);
       final cachedArt = _artworkCache[cacheKey];
       final resolvedId = _resolveSongUri(song);
 
@@ -112,7 +117,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final newSources = <AudioSource>[];
 
     for (final song in songs) {
-      final cacheKey = song.albumId ?? song.id;
+      final cacheKey = _artworkCacheKey(song);
       final cachedArt = _artworkCache[cacheKey];
       final resolvedId = _resolveSongUri(song);
 
@@ -143,7 +148,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     if (songs.isNotEmpty) {
       final firstSong = songs.first;
-      final cacheKey = firstSong.albumId ?? firstSong.id;
+      final cacheKey = _artworkCacheKey(firstSong);
       if (!_artworkCache.containsKey(cacheKey)) {
         final artUri = await _artworkFileUri(firstSong);
         if (artUri != null) {
@@ -167,7 +172,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final items = <MediaItem>[];
     final sources = <AudioSource>[];
     for (final song in songs) {
-      final cacheKey = song.albumId ?? song.id;
+      final cacheKey = _artworkCacheKey(song);
       final item = MediaItem(
         id: _resolveSongUri(song),
         title: song.title,
@@ -199,7 +204,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   ) async {
     for (var i = 0; i < songs.length; i++) {
       final song = songs[i];
-      final cacheKey = song.albumId ?? song.id;
+      final cacheKey = _artworkCacheKey(song);
       if (_artworkCache.containsKey(cacheKey)) continue;
 
       final artUri = await _artworkFileUri(song);
@@ -369,11 +374,25 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // -----------------------------------------------------------------------
 
   Future<Uri?> _artworkFileUri(SongModel song) async {
-    final cacheKey = song.albumId ?? song.id;
+    final cacheKey = _artworkCacheKey(song);
     if (_artworkCache.containsKey(cacheKey)) {
       return _artworkCache[cacheKey];
     }
     try {
+      if (song.id < 0) {
+        final bytes = await MetadataService.extractEmbeddedCover(song.data);
+        if (bytes == null || bytes.isEmpty) {
+          _artworkCache[cacheKey] = null;
+          return null;
+        }
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/artwork_external_$cacheKey.jpg');
+        await file.writeAsBytes(bytes, flush: true);
+        final uri = Uri.file(file.path);
+        _artworkCache[cacheKey] = uri;
+        return uri;
+      }
+
       final bytes = await _audioQuery.queryArtwork(
         song.id,
         ArtworkType.AUDIO,
@@ -408,7 +427,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     for (final i in order) {
       final song = songs[i];
-      final cacheKey = song.albumId ?? song.id;
+      final cacheKey = _artworkCacheKey(song);
       if (_artworkCache.containsKey(cacheKey)) continue;
 
       final artUri = await _artworkFileUri(song);

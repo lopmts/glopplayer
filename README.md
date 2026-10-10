@@ -5,6 +5,9 @@ App de player de música local no Android, com:
   via `on_audio_query_forked` (consulta direta ao MediaStore do Android) —
   não é mais necessário selecionar arquivo por arquivo.
 - Capas de álbum, título e artista lidos diretamente dos metadados do MediaStore.
+- Áudios podem ser abertos pelo menu **Abrir com** ou compartilhados de outros
+  apps; título, artista, álbum, duração e capa incorporada são lidos do arquivo
+  antes de iniciar a reprodução.
 - Duas abas: **Músicas** (lista completa) e **Álbuns** (grade com capas).
 - Tela de álbum mostrando só as músicas daquele álbum.
 - Tela de player com capa, play/pause, próxima/anterior e barra de progresso (seek).
@@ -52,6 +55,10 @@ lib/
 ```
 
 ## Observações importantes
+
+- No Android, o app recebe arquivos de áudio por **VIEW** e **Compartilhar**.
+  Arquivos `content://` são copiados para o cache privado do app para permitir
+  a reprodução e a leitura das tags mesmo sem acesso direto ao caminho original.
 
 - **`SongModel` e `AlbumModel`** vêm prontos do pacote `on_audio_query_forked`
   — não precisamos mais de um modelo `Song` próprio nem de extrair metadados
