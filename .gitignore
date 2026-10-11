@@ -47,3 +47,5 @@ app.*.map.json
 windows
 web
 log.txt
+# Widget Preview related
+.widget_preview/

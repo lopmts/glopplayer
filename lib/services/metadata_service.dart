@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:mime/mime.dart';
 
@@ -22,23 +22,31 @@ class MetadataService {
   MetadataService._();
 
   static bool _initialized = false;
+  static Future<void>? _initialization;
 
-  static Future<void> init() async {
-    if (_initialized) return;
-    await MetadataGod.initialize();
-    _initialized = true;
+  static Future<void> init() {
+    return _initialization ??= _initialize();
+  }
+
+  static Future<void> _initialize() async {
+    try {
+      await MetadataGod.initialize();
+      _initialized = true;
+    } catch (e, st) {
+      debugPrint(
+          'Não foi possível inicializar a leitura de metadados: $e\n$st');
+    }
   }
 
   /// Lê os metadados atuais do arquivo. Retorna null se falhar (arquivo
   /// corrompido, formato não suportado, permissão negada etc.).
   static Future<Metadata?> read(String path) async {
     await init();
+    if (!_initialized) return null;
     try {
       return await MetadataGod.readMetadata(file: path);
-    } catch (e, st) {
-      // TEMPORÁRIO — precisa ver o que está acontecendo de verdade
-      // ignore: avoid_print
-      print('❌ metadata_god falhou em "$path": $e');
+    } catch (e) {
+      debugPrint('Falha ao ler metadados de "$path": $e');
       return null;
     }
   }
@@ -67,6 +75,7 @@ class MetadataService {
     bool removePicture = false,
   }) async {
     await init();
+    if (!_initialized) return false;
     final current = await read(path);
 
     final Picture? picture = removePicture

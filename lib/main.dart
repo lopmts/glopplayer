@@ -5,29 +5,28 @@ import 'package:app_links/app_links.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:glopplayer/controllers/favorites_controller.dart';
-import 'package:glopplayer/screens/pages/favorites_screen.dart';
-import 'package:glopplayer/screens/pages/log_screen.dart';
-import 'package:glopplayer/screens/pages/player_screen.dart';
-import 'package:home_widget/home_widget.dart';
 import 'package:glopplayer/controllers/library_controller.dart';
 import 'package:glopplayer/provider/playlist_provider.dart';
 import 'package:glopplayer/provider/theme_provider.dart';
-import 'package:glopplayer/screens/pages/cache_management_screen.dart';
-import 'package:glopplayer/screens/pages/local_library_screen.dart';
-import 'package:glopplayer/screens/pages/theme_settings_screen.dart';
 import 'package:glopplayer/screens/pages/additional_settings_screen.dart';
 import 'package:glopplayer/screens/pages/backup_settings_screen.dart';
+import 'package:glopplayer/screens/pages/cache_management_screen.dart';
+import 'package:glopplayer/screens/pages/favorites_screen.dart';
+import 'package:glopplayer/screens/pages/local_library_screen.dart';
+import 'package:glopplayer/screens/pages/log_screen.dart';
+import 'package:glopplayer/screens/pages/player_screen.dart';
+import 'package:glopplayer/screens/pages/theme_settings_screen.dart';
 import 'package:glopplayer/services/additional_settings_service.dart';
 import 'package:glopplayer/services/external_audio_service.dart';
 import 'package:glopplayer/services/metadata_service.dart';
 import 'package:glopplayer/theme/dynamic_color_wrapper.dart';
-import 'package:provider/provider.dart';
 import 'package:glopplayer/widgets/tabs_navegation.dart';
-
-import 'services/audio_player_handler.dart';
-import 'controllers/player_controller.dart';
-
 import 'package:glopplayer/widgets/update_dialog.dart';
+import 'package:home_widget/home_widget.dart';
+import 'package:provider/provider.dart';
+
+import 'controllers/player_controller.dart';
+import 'services/audio_player_handler.dart';
 
 late MyAudioHandler audioHandler;
 late PlayerController playerController;
@@ -42,7 +41,6 @@ Future<void> _handleExternalAudioUri(String uri) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await MetadataService.init();
 
   audioHandler = await AudioService.init(
     builder: () => MyAudioHandler(),
@@ -57,6 +55,7 @@ Future<void> main() async {
   playerController = PlayerController(audioHandler);
 
   runApp(const MyApp());
+  unawaited(MetadataService.init());
 
   if (Platform.isAndroid) {
     ExternalAudioService.audioUris.listen(
@@ -137,8 +136,8 @@ class _MyAppState extends State<MyApp> {
     final action = uri.host.isNotEmpty
         ? uri.host.toLowerCase()
         : uri.pathSegments.isNotEmpty
-        ? uri.pathSegments.first.toLowerCase()
-        : '';
+            ? uri.pathSegments.first.toLowerCase()
+            : '';
 
     switch (action) {
       case 'playpause':
@@ -194,12 +193,12 @@ class _MyAppState extends State<MyApp> {
                   const CacheManagementScreen(),
               '/pages/logs_screen': (context) => const LogsScreen(),
               '/pages/favorites': (context) => FavoritesScreen(
-                onSongTap: (song) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PlayerScreen()),
-                  );
-                },
-              ),
+                    onSongTap: (song) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PlayerScreen()),
+                      );
+                    },
+                  ),
             },
           );
         },
