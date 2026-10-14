@@ -148,14 +148,14 @@ class _TabItem extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               decoration: BoxDecoration(
                 color: selected ? cs.secondaryContainer : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(32),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -183,19 +183,18 @@ class _TabItem extends StatelessWidget {
                       size: 23,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: selected
-                          ? cs.onSecondaryContainer
-                          : cs.onSurfaceVariant,
-                      fontWeight: selected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
+                          color: selected
+                              ? cs.onSecondaryContainer
+                              : cs.onSurfaceVariant,
+                          fontWeight:
+                              selected ? FontWeight.bold : FontWeight.normal,
+                        ),
                   ),
                 ],
               ),

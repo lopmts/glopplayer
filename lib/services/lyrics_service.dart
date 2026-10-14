@@ -91,8 +91,12 @@ class LyricsFormatter {
       out.add(text);
     }
 
-    while (out.isNotEmpty && out.first.isEmpty) out.removeAt(0);
-    while (out.isNotEmpty && out.last.isEmpty) out.removeLast();
+    while (out.isNotEmpty && out.first.isEmpty) {
+      out.removeAt(0);
+    }
+    while (out.isNotEmpty && out.last.isEmpty) {
+      out.removeLast();
+    }
     return out.join('\n');
   }
 }
