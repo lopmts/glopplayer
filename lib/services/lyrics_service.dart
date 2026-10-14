@@ -7,8 +7,9 @@ import 'package:on_audio_query/on_audio_query.dart';
 /// Sistema de letras 100% local — nunca faz requisição de rede.
 ///
 /// Ordem de busca:
-///   1) tag ID3v2 USLT embutida no próprio arquivo (hoje só MP3)
-///   2) arquivo irmão `<mesmo nome>.lrc` ou `.txt` na mesma pasta
+///   1) arquivo irmão `<mesmo nome>.lrc` (mantém a sincronização)
+///   2) letra embutida em ID3v2 USLT (MP3) ou comentário Ogg/Opus
+///   3) arquivo irmão `<mesmo nome>.txt`
 ///
 /// Retorna null se nada for encontrado — a UI (`LyricsSheet`) já trata
 /// esse caso mostrando "Letra não disponível".
@@ -25,6 +26,9 @@ class LyricsService {
 
     final ext = path.contains('.') ? path.split('.').last.toLowerCase() : '';
 
+    final syncedSidecar = await _readSidecar(path, const ['.lrc']);
+    if (syncedSidecar != null) return syncedSidecar;
+
     try {
       String? embedded;
       if (ext == 'mp3') {
@@ -33,28 +37,26 @@ class LyricsService {
         embedded = await _OggCommentReader.readLyrics(path);
       }
       if (embedded != null && embedded.trim().isNotEmpty) {
-        return LyricsFormatter.format(embedded);
+        return embedded.trim();
       }
     } catch (e) {
       debugPrint('Falha ao extrair letra embutida de "$path": $e');
     }
 
-    final sidecar = await _readSidecar(path);
-    if (sidecar != null) return LyricsFormatter.format(sidecar);
-
-    return null;
+    return _readSidecar(path, const ['.txt']);
   }
 
-  Future<String?> _readSidecar(String audioPath) async {
+  Future<String?> _readSidecar(
+      String audioPath, List<String> extensions) async {
     final dotIndex = audioPath.lastIndexOf('.');
     final base = dotIndex > 0 ? audioPath.substring(0, dotIndex) : audioPath;
 
-    for (final ext in ['.lrc', '.txt']) {
+    for (final ext in extensions) {
       final file = File('$base$ext');
       try {
         if (await file.exists()) {
           final content = await file.readAsString();
-          if (content.trim().isNotEmpty) return content;
+          if (content.trim().isNotEmpty) return content.trim();
         }
       } catch (e) {
         debugPrint('Erro ao ler letra sidecar "$base$ext": $e');
@@ -63,6 +65,7 @@ class LyricsService {
     return null;
   }
 }
+
 
 /// Limpa um texto LRC/TXT pra exibição: remove timestamps, remove linhas
 /// de metadado ([ar:...], [ti:...] etc), preserva quebras de estrofe
@@ -100,6 +103,7 @@ class LyricsFormatter {
     return out.join('\n');
   }
 }
+
 
 /// Leitor mínimo de ID3v2 USLT (letra não sincronizada). Lê só o cabeçalho
 /// da tag ID3 (10 bytes) + o corpo da tag (tagSize, geralmente poucos KB a

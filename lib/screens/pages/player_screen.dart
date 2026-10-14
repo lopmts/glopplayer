@@ -527,7 +527,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       // Preview da letra, estilo "pill" fixo embaixo
                       LyricsPreviewBar(
                         song: song,
-                        lyricsFetcher: LyricsService.instance.fetch,
+                        lyricsFetcher: widget.lyricsFetcher ??
+                            LyricsService.instance.fetch,
                         onTap: () => _showLyricsSheet(context, song),
                       ),
                     ],
@@ -556,8 +557,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
       builder: (sheetContext) => LyricsSheet(
+        key: ValueKey(song.id),
         song: song,
-        lyricsFetcher: LyricsService.instance.fetch,
+        lyricsFetcher: widget.lyricsFetcher ?? LyricsService.instance.fetch,
+        positionStream: context.read<PlayerController>().player.positionStream,
+        initialPosition: context.read<PlayerController>().player.position,
+        onSeek: context.read<PlayerController>().seek,
       ),
     );
   }
