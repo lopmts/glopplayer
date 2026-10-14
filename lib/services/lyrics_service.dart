@@ -66,6 +66,45 @@ class LyricsService {
   }
 }
 
+
+/// Limpa um texto LRC/TXT pra exibição: remove timestamps, remove linhas
+/// de metadado ([ar:...], [ti:...] etc), preserva quebras de estrofe
+/// (mas nunca deixa duas linhas em branco seguidas).
+class LyricsFormatter {
+  static final _timeTag = RegExp(r'^\[\d{2}:\d{2}(?:\.\d{1,3})?\]');
+  static final _metaTag = RegExp(r'^\[[a-zA-Z]+:.*?\]$');
+
+  static String format(String raw) {
+    final rawLines = raw.split(RegExp(r'\r\n|\r|\n'));
+    final out = <String>[];
+
+    for (final line in rawLines) {
+      final trimmed = line.trim();
+      if (_metaTag.hasMatch(trimmed)) continue;
+
+      var text = trimmed;
+      while (_timeTag.hasMatch(text)) {
+        text = text.replaceFirst(_timeTag, '').trimLeft();
+      }
+
+      if (text.isEmpty) {
+        if (out.isNotEmpty && out.last.isNotEmpty) out.add('');
+        continue;
+      }
+      out.add(text);
+    }
+
+    while (out.isNotEmpty && out.first.isEmpty) {
+      out.removeAt(0);
+    }
+    while (out.isNotEmpty && out.last.isEmpty) {
+      out.removeLast();
+    }
+    return out.join('\n');
+  }
+}
+
+
 /// Leitor mínimo de ID3v2 USLT (letra não sincronizada). Lê só o cabeçalho
 /// da tag ID3 (10 bytes) + o corpo da tag (tagSize, geralmente poucos KB a
 /// poucos MB se tiver capa embutida) — nunca o arquivo de áudio inteiro.
