@@ -47,6 +47,7 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.1
   flutter_markdown: ^0.7.7+1
+  xml: ^6.6.1
 
   # Material Expressive 3 / Dynamic Color
   dynamic_color: ^1.7.0
