@@ -23,6 +23,7 @@ class ThemeController extends ChangeNotifier {
   ThemeMode get themeMode => _settings.themeMode;
   bool get useDynamicColor => _settings.useDynamicColor;
   bool get useAmoled => _settings.useAmoled;
+  bool get useTransparentUi => _settings.useTransparentUi;
   Color get seedColor => _settings.seedColor;
 
   Future<void> _load() async {
@@ -70,6 +71,13 @@ class ThemeController extends ChangeNotifier {
   Future<void> setUseAmoled(bool value) async {
     if (_settings.useAmoled == value) return;
     _settings = _settings.copyWith(useAmoled: value);
+    notifyListeners();
+    await _persist();
+  }
+
+  Future<void> setUseTransparentUi(bool value) async {
+    if (_settings.useTransparentUi == value) return;
+    _settings = _settings.copyWith(useTransparentUi: value);
     notifyListeners();
     await _persist();
   }

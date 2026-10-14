@@ -34,8 +34,9 @@ class ThemeSettingsScreen extends StatelessWidget {
           const Divider(),
           SwitchListTile(
             title: const Text('Cor dinâmica (Material You)'),
-            subtitle:
-                const Text('Usa as cores do seu papel de parede (Android 12+)'),
+            subtitle: const Text(
+              'Usa as cores do seu papel de parede (Android 12+)',
+            ),
             value: theme.useDynamicColor,
             onChanged: (v) => theme.setUseDynamicColor(v),
           ),
@@ -43,6 +44,14 @@ class ThemeSettingsScreen extends StatelessWidget {
             title: const Text('AMOLED (preto puro)'),
             value: theme.useAmoled,
             onChanged: (v) => theme.setUseAmoled(v),
+          ),
+          SwitchListTile(
+            title: const Text('Interface transparente'),
+            subtitle: const Text(
+              'Aplica efeito de vidro nas abas, diálogos e menus',
+            ),
+            value: theme.useTransparentUi,
+            onChanged: theme.setUseTransparentUi,
           ),
           if (!theme.useDynamicColor) ...[
             const Divider(),

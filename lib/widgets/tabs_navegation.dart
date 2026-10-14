@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:glopplayer/provider/theme_provider.dart';
 import 'package:glopplayer/screens/albums_screen.dart';
 import 'package:glopplayer/screens/home_screen.dart';
 import 'package:glopplayer/screens/music_list_screen.dart';
@@ -29,6 +32,46 @@ class _MainTabScreenState extends State<MainTabScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final transparentUi = context.watch<ThemeProvider>().useTransparentUi;
+    final navigationItems = Row(
+      children: [
+        _TabItem(
+          icon: Icons.home_outlined,
+          selectedIcon: Icons.home,
+          label: 'Início',
+          selected: _selectedIndex == 0,
+          onTap: () => _selectTab(0),
+        ),
+        _TabItem(
+          icon: Icons.playlist_play_outlined,
+          selectedIcon: Icons.playlist_play,
+          label: 'Playlists',
+          selected: _selectedIndex == 1,
+          onTap: () => _selectTab(1),
+        ),
+        _TabItem(
+          icon: Icons.library_music_outlined,
+          selectedIcon: Icons.library_music,
+          label: 'Músicas',
+          selected: _selectedIndex == 2,
+          onTap: () => _selectTab(2),
+        ),
+        _TabItem(
+          icon: Icons.album_outlined,
+          selectedIcon: Icons.album,
+          label: 'Álbuns',
+          selected: _selectedIndex == 3,
+          onTap: () => _selectTab(3),
+        ),
+        _TabItem(
+          icon: Icons.settings_outlined,
+          selectedIcon: Icons.settings,
+          label: 'Configurações',
+          selected: _selectedIndex == 4,
+          onTap: () => _selectTab(4),
+        ),
+      ],
+    );
 
     return Scaffold(
       body: _pages[_selectedIndex],
@@ -43,48 +86,30 @@ class _MainTabScreenState extends State<MainTabScreen> {
             if (_selectedIndex != 3 ||
                 context.watch<AdditionalSettingsService>().showPlayerOnAlbums)
               const MiniPlayerBar(),
-            Material(
-              color: cs.surfaceContainerHigh,
-              child: Row(
-                children: [
-                  _TabItem(
-                    icon: Icons.home_outlined,
-                    selectedIcon: Icons.home,
-                    label: 'Início',
-                    selected: _selectedIndex == 0,
-                    onTap: () => _selectTab(0),
+            if (transparentUi)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                    decoration: BoxDecoration(
+                      color: cs.surface.withValues(
+                        alpha: Theme.of(context).brightness == Brightness.dark
+                            ? 0.68
+                            : 0.78,
+                      ),
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(
+                        color: cs.outlineVariant.withValues(alpha: 0.38),
+                      ),
+                    ),
+                    child: navigationItems,
                   ),
-                  _TabItem(
-                    icon: Icons.playlist_play_outlined,
-                    selectedIcon: Icons.playlist_play,
-                    label: 'Playlists',
-                    selected: _selectedIndex == 1,
-                    onTap: () => _selectTab(1),
-                  ),
-                  _TabItem(
-                    icon: Icons.library_music_outlined,
-                    selectedIcon: Icons.library_music,
-                    label: 'Músicas',
-                    selected: _selectedIndex == 2,
-                    onTap: () => _selectTab(2),
-                  ),
-                  _TabItem(
-                    icon: Icons.album_outlined,
-                    selectedIcon: Icons.album,
-                    label: 'Álbuns',
-                    selected: _selectedIndex == 3,
-                    onTap: () => _selectTab(3),
-                  ),
-                  _TabItem(
-                    icon: Icons.settings_outlined,
-                    selectedIcon: Icons.settings,
-                    label: 'Configurações',
-                    selected: _selectedIndex == 4,
-                    onTap: () => _selectTab(4),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              )
+            else
+              Material(color: cs.surfaceContainerHigh, child: navigationItems),
           ],
         ),
       ),
@@ -164,12 +189,13 @@ class _TabItem extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: selected
-                              ? cs.onSecondaryContainer
-                              : cs.onSurfaceVariant,
-                          fontWeight:
-                              selected ? FontWeight.bold : FontWeight.normal,
-                        ),
+                      color: selected
+                          ? cs.onSecondaryContainer
+                          : cs.onSurfaceVariant,
+                      fontWeight: selected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
                 ],
               ),

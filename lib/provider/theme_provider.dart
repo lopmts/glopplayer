@@ -9,6 +9,7 @@ class ThemeProvider extends ChangeNotifier {
   ThemeMode get themeMode => _settings.themeMode;
   bool get useDynamicColor => _settings.useDynamicColor;
   bool get useAmoled => _settings.useAmoled;
+  bool get useTransparentUi => _settings.useTransparentUi;
   Color get seedColor => _settings.seedColor;
 
   ThemeProvider() {
@@ -22,6 +23,7 @@ class ThemeProvider extends ChangeNotifier {
       useDynamicColor: prefs.getBool(kUseDynamicColorKey) ?? true,
       seedColorValue: prefs.getInt(kSeedColorKey) ?? kDefaultSeedColor,
       useAmoled: prefs.getBool(kUseAmoledKey) ?? false,
+      useTransparentUi: prefs.getBool(kUseTransparentUiKey) ?? false,
     );
     notifyListeners();
   }
@@ -32,6 +34,7 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setBool(kUseDynamicColorKey, _settings.useDynamicColor);
     await prefs.setInt(kSeedColorKey, _settings.seedColorValue);
     await prefs.setBool(kUseAmoledKey, _settings.useAmoled);
+    await prefs.setBool(kUseTransparentUiKey, _settings.useTransparentUi);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -60,6 +63,12 @@ class ThemeProvider extends ChangeNotifier {
 
   Future<void> setUseAmoled(bool value) async {
     _settings = _settings.copyWith(useAmoled: value);
+    notifyListeners();
+    await _persist();
+  }
+
+  Future<void> setUseTransparentUi(bool value) async {
+    _settings = _settings.copyWith(useTransparentUi: value);
     notifyListeners();
     await _persist();
   }

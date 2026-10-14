@@ -10,7 +10,8 @@ class DynamicColorWrapper extends StatelessWidget {
     ThemeData light,
     ThemeData dark,
     ThemeMode mode,
-  ) builder;
+  )
+  builder;
 
   const DynamicColorWrapper({super.key, required this.builder});
 
@@ -23,7 +24,8 @@ class DynamicColorWrapper extends StatelessWidget {
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
-        final canUseDynamic = themeProvider.useDynamicColor &&
+        final canUseDynamic =
+            themeProvider.useDynamicColor &&
             lightDynamic != null &&
             darkDynamic != null;
 
@@ -45,10 +47,14 @@ class DynamicColorWrapper extends StatelessWidget {
           darkScheme = _applyAmoledColors(darkScheme);
         }
 
-        final lightTheme = AppTheme.light(dynamicScheme: lightScheme);
+        final lightTheme = AppTheme.light(
+          dynamicScheme: lightScheme,
+          transparentUi: themeProvider.useTransparentUi,
+        );
         final darkTheme = AppTheme.dark(
           dynamicScheme: darkScheme,
           isAmoled: themeProvider.useAmoled,
+          transparentUi: themeProvider.useTransparentUi,
         );
 
         return builder(context, lightTheme, darkTheme, themeProvider.themeMode);

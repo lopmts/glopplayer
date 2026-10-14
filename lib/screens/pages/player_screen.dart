@@ -543,13 +543,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // --- Letra
   void _showLyricsSheet(BuildContext context, SongModel song) {
+    final theme = Theme.of(context);
+    final transparentUi = theme.bottomSheetTheme.modalBackgroundColor != null;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor:
+          transparentUi ? null : theme.colorScheme.surfaceContainerHigh,
+      shape: transparentUi
+          ? null
+          : const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
       builder: (sheetContext) => LyricsSheet(
         song: song,
         lyricsFetcher: LyricsService.instance.fetch,
